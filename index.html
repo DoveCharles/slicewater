@@ -203,7 +203,7 @@ button:focus-visible, input:focus-visible { outline: 1px dotted var(--lime); out
 
 /* header: NFO + blackletter */
 .top { align-items: center; padding-top: 34px; }
-.top::before { content: "// welcome to slicewater.  version 1.0a.  the year is 2003."; position: absolute; top: 10px; left: 14px; font: 14px var(--f-mono); color: var(--muted); letter-spacing: .04em; }
+.top::before { content: "// welcome to slicewater.  version 1.0a."; position: absolute; top: 10px; left: 14px; font: 14px var(--f-mono); color: var(--muted); letter-spacing: .04em; }
 .brand h1 { font-family: var(--f-goth); font-weight: normal; font-size: clamp(64px, 12vw, 120px); line-height: .9; letter-spacing: .01em; margin: 2px 0 8px;
   background:
     linear-gradient(180deg, #ffffff 0%, #dfe6ff 30%, #8090d8 47%, #1c2470 52%, #9fb0f0 64%, #ffffff 82%, #aab8f0 100%);
@@ -306,6 +306,41 @@ input[type=range]::-moz-range-thumb { width: 18px; height: 10px; border-radius: 
 [aria-label="Pad"] { --aqua: #5ff2cf; }
 [aria-label="Pad"] .sub-field { --aqua: #c4ff4f; }
 [aria-label="Lead"] { --aqua: #7dff8a; }
+[aria-label="Master"] { --aqua: #ffd75e; }
+.sliders { grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); }
+.drum .sliders { grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); }
+.pad-ctrls .sliders { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+/* columns: one column on narrow screens in the old order; drums | everything else when wide */
+.cols, .col, .side { display: contents; }
+.col-drums > .kit { order: 1; }
+.app > .foot { order: 2; }
+[aria-label="Pad"], [aria-label="Master"] { container-type: inline-size; }
+@container (max-width: 820px) { .pad-grid { grid-template-columns: 1fr; } }
+@container (max-width: 640px) { .master-grid { grid-template-columns: 1fr; } }
+@media (min-width: 1400px) {
+  .app { max-width: 1780px; }
+  .cols { display: grid; grid-template-columns: minmax(820px, 1.25fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+  .col, .side { display: grid; gap: 18px; align-content: start; min-width: 0; }
+  .col-drums > .kit { order: 0; grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}
+@media (min-width: 2100px) {
+  .app { max-width: 2500px; }
+  .cols { grid-template-columns: minmax(860px, 1.3fr) minmax(0, 2fr); }
+  .side { grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); grid-template-rows: auto 1fr; align-items: start; }
+  .side > .col { display: contents; }
+  .side [aria-label="Pad"] { grid-column: 2; grid-row: 1 / span 2; }
+  .side [aria-label="Lead"] { grid-column: 1; grid-row: 2; }
+}
+[aria-label="Master"] .save-field { --aqua: #6fc8ff; }
+.master-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 18px; }
+@media (max-width: 760px) { .master-grid { grid-template-columns: 1fr; } }
+.grmeter { position: relative; flex: 1 1 140px; min-width: 120px; height: 16px; background: #02040e; border: 1px solid var(--line); overflow: hidden; }
+.grmeter i { position: absolute; top: 0; right: 0; bottom: 0; width: 0; background: var(--aqua); }
+.grmeter b { position: absolute; inset: 0; display: flex; align-items: center; justify-content: flex-start; padding-left: 5px; font: 11px var(--f-mono); color: var(--ink); }
+.save-field { display: grid; gap: 8px; align-content: start; }
+.save-field input[type="text"], .save-field select { min-width: 0; flex: 1 1 120px; background: #02040e; color: var(--ink); border: 1px solid var(--line); padding: 7px 9px; font: 13px var(--f-mono); }
+.save-field input[type="text"]:focus, .save-field select:focus { outline: 1px solid var(--aqua); border-color: var(--aqua); }
+#saveMsg { min-height: 1.2em; }
 .drum:nth-child(5n+1) { --aqua: #7fd8ff; } .drum:nth-child(5n+2) { --aqua: #ffb547; } .drum:nth-child(5n+3) { --aqua: #b9a2ff; }
 .drum:nth-child(5n+4) { --aqua: #5ff2cf; } .drum:nth-child(5n) { --aqua: #c4ff4f; }
 /* hard corners everywhere */
@@ -318,7 +353,7 @@ input[type=range]::-moz-range-thumb { width: 18px; height: 10px; border-radius: 
   <header class="top">
     <div class="brand">
       <h1>Slice<span>water</span></h1>
-      <p>A liquid drum &amp; bass break slicer. Program a break, render it, chop it into 32 slices and mutate the order. Every hit is synthesized with ZzFX.</p>
+      <p>Liquid DnB Generator</p>
     </div>
     <div class="transport">
       <button id="play" class="play" aria-label="Play"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path class="i-play" d="M7 4.5v15l12.5-7.5z" fill="currentColor"/><rect class="i-stop" x="5.5" y="5.5" width="13" height="13" rx="2.5" fill="currentColor"/></svg></button>
@@ -329,6 +364,8 @@ input[type=range]::-moz-range-thumb { width: 18px; height: 10px; border-radius: 
     <canvas id="scroller" aria-hidden="true"></canvas>
   </header>
 
+  <div class="cols">
+  <div class="col col-drums">
   <section class="deck" aria-label="Break and slicer">
     <div class="deck-head">
       <div class="chips" id="presets" role="group" aria-label="Break presets"></div>
@@ -380,6 +417,44 @@ input[type=range]::-moz-range-thumb { width: 18px; height: 10px; border-radius: 
     <div class="sliders" id="mix"></div>
   </section>
 
+  <section class="kit" id="kit" aria-label="Drum kit"></section>
+  </div>
+  <div class="side">
+  <div class="col col-mix">
+  <section class="panel" aria-label="Master">
+    <h2>Master <em id="compState"></em></h2>
+    <div class="master-grid">
+      <div class="field">
+        <div class="ctrl-row">
+          <button class="padbtn small" id="compBtn" aria-pressed="true">Compressor</button>
+          <span class="lbl">reduction</span>
+          <div class="grmeter" aria-hidden="true"><i id="grBar"></i><b id="grOut">0.0 dB</b></div>
+        </div>
+        <div class="sliders" id="compSliders"></div>
+      </div>
+      <div class="save-field">
+        <span class="lbl">Saved settings</span>
+        <div class="ctrl-row">
+          <input type="text" id="saveName" placeholder="Name this setup" maxlength="40" aria-label="Name for saved settings">
+          <button class="btn" id="saveBtn">Save</button>
+        </div>
+        <div class="ctrl-row">
+          <select id="saveList" aria-label="Saved settings"></select>
+          <button class="btn" id="loadBtn">Load</button>
+          <button class="btn" id="delBtn">Delete</button>
+        </div>
+        <div class="ctrl-row">
+          <button class="btn" id="exportBtn">Export file</button>
+          <button class="btn" id="importBtn">Import file</button>
+          <input type="file" id="importFile" accept=".json,application/json" hidden>
+        </div>
+        <span class="chord-notes" id="saveMsg"></span>
+        <p class="hint">Saves the whole setup: break, slices, kit, mix, master, pad, bass, lead and robot settings. Saves stay in this browser; export a file to keep them or move them to another computer. Your last setup comes back when you reopen the page.</p>
+      </div>
+    </div>
+  </section>
+  </div>
+  <div class="col col-synth">
   <section class="panel" aria-label="Pad">
     <h2>Pad <em id="chordName">Am9</em></h2>
     <div class="pad-grid">
@@ -425,8 +500,9 @@ input[type=range]::-moz-range-thumb { width: 18px; height: 10px; border-radius: 
     <div class="sliders" id="leadSliders"></div>
     <p class="hint">Hold Shift (or turn on Latch) and a mono sine lead improvises over the chord, using notes from a scale that fits the chord type and the key the piano last played. It locks to the beat when the beat is running and keeps its own clock when it isn't. Bars of melody often repeat with a new ending, so phrases come back around.</p>
   </section>
-
-  <section class="kit" id="kit" aria-label="Drum kit"></section>
+  </div>
+  </div>
+  </div>
   <p class="foot">Sounds are generated with ZzFX by Frank Force (MIT). Each drum is two or three ZzFX calls layered; copy the code from any card to use the sound elsewhere. Kit or tempo changes re-render the break.</p>
 </div>
 
@@ -596,7 +672,7 @@ let renderTimer = 0;
 function queueRender() { clearTimeout(renderTimer); renderTimer = setTimeout(renderBreak, 90); }
 
 /* ---------- Audio graph ---------- */
-let ctx = null, bus, shaper, hp, filt, dryG, wetG, conv, comp, master, fwdBuf = null, revBuf = null;
+let ctx = null, bus, shaper, hp, filt, dryG, wetG, conv, comp, makeup, master, fwdBuf = null, revBuf = null;
 function ensureAudio() {
   if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return; }
   ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -607,15 +683,15 @@ function ensureAudio() {
   dryG = ctx.createGain(); wetG = ctx.createGain();
   conv = ctx.createConvolver(); conv.buffer = makeIR(2.6);
   comp = ctx.createDynamicsCompressor();
-  comp.threshold.value = -14; comp.ratio.value = 3; comp.attack.value = .004; comp.release.value = .16;
+  makeup = ctx.createGain();
   master = ctx.createGain();
   bus.connect(shaper).connect(hp).connect(filt);
   filt.connect(dryG).connect(comp);
   filt.connect(conv).connect(wetG).connect(comp);
-  comp.connect(master).connect(ctx.destination);
+  comp.connect(makeup).connect(master).connect(ctx.destination);
   buildPadGraph(); applyPad();
   buildLead(); applyLead();
-  applyMix();
+  applyMix(); applyComp();
   makeBuffers();
 }
 function makeIR(sec) {
@@ -1020,6 +1096,43 @@ MIX.forEach(m => {
     if (m.render) queueRender(); else applyMix();
   }));
 });
+
+/* ---------- Master compressor ---------- */
+const master_ = { on: true, threshold: -14, ratio: 3, attack: .004, release: .16, knee: 6, makeup: 0 };
+const COMP = [
+  { k: 'threshold', label: 'Threshold', min: -40, max: 0, step: .5, fmt: v => v.toFixed(1) + ' dB' },
+  { k: 'ratio', label: 'Ratio', min: 1, max: 20, step: .1, fmt: v => v.toFixed(1) + ':1' },
+  { k: 'attack', label: 'Attack', min: .001, max: .1, step: .001, fmt: v => (v*1000).toFixed(v < .01 ? 1 : 0) + ' ms' },
+  { k: 'release', label: 'Release', min: .02, max: 1, step: .005, fmt: v => Math.round(v*1000) + ' ms' },
+  { k: 'knee', label: 'Knee', min: 0, max: 30, step: .5, fmt: v => v.toFixed(1) + ' dB' },
+  { k: 'makeup', label: 'Makeup', min: 0, max: 12, step: .1, fmt: v => '+' + v.toFixed(1) + ' dB' },
+];
+function applyComp() {
+  if (!ctx) return;
+  const t = ctx.currentTime, on = master_.on;
+  // off = unity: ratio 1 and a 0 dB threshold pass audio through untouched
+  comp.threshold.setTargetAtTime(on ? master_.threshold : 0, t, .02);
+  comp.ratio.setTargetAtTime(on ? master_.ratio : 1, t, .02);
+  comp.knee.setTargetAtTime(master_.knee, t, .02);
+  comp.attack.setTargetAtTime(master_.attack, t, .02);
+  comp.release.setTargetAtTime(master_.release, t, .02);
+  makeup.gain.setTargetAtTime(on ? Math.pow(10, master_.makeup/20) : 1, t, .02);
+}
+function paintComp() {
+  $('compBtn').setAttribute('aria-pressed', master_.on);
+  $('compState').textContent = master_.on ? master_.ratio.toFixed(1) + ':1 at ' + master_.threshold.toFixed(1) + ' dB' : 'bypassed';
+}
+COMP.forEach(m => $('compSliders').appendChild(slider('comp-' + m.k, m.label, m, master_[m.k], m.fmt, v => { master_[m.k] = v; applyComp(); paintComp(); })));
+$('compBtn').onclick = () => { master_.on = !master_.on; applyComp(); paintComp(); };
+paintComp();
+let grShown = -1;
+function paintGR() {
+  const r = ctx && master_.on ? Math.min(0, comp.reduction.value ?? comp.reduction) : 0;
+  const db = Math.round(-r*10)/10;
+  if (db === grShown) return; grShown = db;
+  $('grBar').style.width = Math.min(100, db/20*100) + '%';
+  $('grOut').textContent = (db ? '−' : '') + db.toFixed(1) + ' dB';
+}
 
 /* ---------- Kit cards ---------- */
 const KNOBS = [
@@ -1692,6 +1805,7 @@ function frame() {
     if (changed) { paintNow(); drawWave(); }
   }
   drawTrace();
+  paintGR();
   requestAnimationFrame(frame);
 }
 
@@ -1705,12 +1819,147 @@ sizeTrace();
 new ResizeObserver(sizeTrace).observe(traceCv);
 requestAnimationFrame(frame);
 
+/* ---------- Saved settings: named saves in this browser, file export/import, last setup restored on load ---------- */
+const SAVES_KEY = 'slicewater:saves', LAST_KEY = 'slicewater:last';
+const store = {
+  get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch { return false; } },
+};
+// a preset name only counts while the lanes still match it
+const isPreset = name => name in PRESETS && DRUMS.every(d => pattern[d.id].join('') === (PRESETS[name][d.id] || '.'.repeat(N)));
+const without = (o, ...ks) => Object.fromEntries(Object.entries(o).filter(([k]) => !ks.includes(k)));
+function snapshot() {
+  return {
+    app: 'slicewater', v: 1,
+    preset: isPreset(preset) ? preset : null, seed,
+    pattern: Object.fromEntries(DRUMS.map(d => [d.id, pattern[d.id].join('')])),
+    seq: seq.map(c => ({ ...c })),
+    kit: Object.fromEntries(DRUMS.map(d => [d.id, { ...d.p }])),
+    mix: { ...mix }, master: { ...master_ },
+    pad: without(pad, 'on', 'latch'),
+    bass: { ...bass }, riff: riff.join(''),
+    lead: without(lead, 'hold', 'latch'),
+    robot: { pace: robot.pace, parallel: robot.parallel },
+  };
+}
+// copy matching keys from src into target; slider-backed keys go through their slider so outputs and audio follow
+function put(target, src, prefix) {
+  if (!src || typeof src !== 'object') return;
+  for (const k in target) {
+    if (typeof src[k] !== typeof target[k] || (typeof src[k] === 'number' && !isFinite(src[k]))) continue;
+    const el = prefix && $(prefix + k);
+    if (el && el.type === 'range') { el.value = src[k]; el.dispatchEvent(new Event('input')); }
+    else if (typeof src[k] !== 'object') target[k] = src[k];
+  }
+}
+function restore(s) {
+  if (!s || s.app !== 'slicewater') return false;
+  put(mix, s.mix, 'mix-');
+  put(master_, s.master, 'comp-'); applyComp(); paintComp();
+  DRUMS.forEach(d => { put(d.p, s.kit?.[d.id], `k-${d.id}-`); $('code-' + d.id).textContent = codeFor(d); });
+  for (const d of DRUMS) {
+    const p = s.pattern?.[d.id];
+    if (typeof p === 'string' && p.length === N && /^[.xXg]+$/.test(p)) pattern[d.id] = p.split('');
+  }
+  preset = isPreset(s.preset) ? s.preset : null; markPreset(preset); paintLanes();
+  if (Number.isFinite(s.seed)) seed = s.seed;
+  if (Array.isArray(s.seq) && s.seq.length === N) {
+    const clamp = (v, lo, hi, dflt) => Number.isFinite(v) ? Math.max(lo, Math.min(hi, Math.round(v))) : dflt;
+    seq = s.seq.map((c, i) => ({ src: clamp(c?.src, 0, N - 1, i), rev: !!c?.rev, stut: clamp(c?.stut, 1, 8, 1), pitch: clamp(c?.pitch, -24, 24, 0), mute: !!c?.mute }));
+  }
+  drawSeq(); drawInspector();
+  renderBreak();
+  put(pad, s.pad, 'pad-');
+  if (!CHORDS.some(c => c.id === pad.chord)) pad.chord = 'm9';
+  if (!WAVES.some(w => w.v === pad.wave)) pad.wave = 2;
+  pad.root = Math.max(LOW, Math.min(HIGH, Math.round(pad.root)));
+  markChord(); markWave(); retrigger(true);
+  put(bass, s.bass, 'sub-');
+  if (!(bass.riffName in RIFFS)) bass.riffName = 'Custom';
+  if (typeof s.riff === 'string' && s.riff.length === N && /^[r5o.\-]+$/.test(s.riff)) riff = s.riff.split('');
+  if (!bass.on) subStop(); else if (sounding.length) subTo(pad.root);
+  markOct(); markRiff(); paintSub(pad.root);
+  put(lead, s.lead, 'lead-');
+  if (![3, 4, 5].includes(lead.oct)) lead.oct = 4;
+  markLeadOct(); traceDirty = true; paintLead();
+  if (s.robot?.pace in ROBOT_PATS) robot.pace = s.robot.pace;
+  if (typeof s.robot?.parallel === 'boolean') robot.parallel = s.robot.parallel;
+  paintRobot();
+  return true;
+}
+
+function say(t) { $('saveMsg').textContent = t; }
+function saves() { const s = store.get(SAVES_KEY); return s && typeof s === 'object' ? s : {}; }
+function listSaves(pickName) {
+  const names = Object.keys(saves()).sort((a, b) => a.localeCompare(b));
+  const sel = $('saveList');
+  sel.innerHTML = names.length ? '' : '<option value="">No saves yet</option>';
+  names.forEach(n => { const o = document.createElement('option'); o.value = o.textContent = n; sel.appendChild(o); });
+  if (pickName && names.includes(pickName)) sel.value = pickName;
+  $('loadBtn').disabled = $('delBtn').disabled = !names.length;
+}
+$('saveBtn').onclick = () => {
+  const name = $('saveName').value.trim() || 'Setup ' + new Date().toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
+  const all = saves(), existed = name in all;
+  all[name] = snapshot();
+  if (!store.set(SAVES_KEY, all)) { say('Could not save: this browser is blocking storage. Use Export file instead.'); return; }
+  $('saveName').value = name; listSaves(name);
+  say((existed ? 'Updated “' : 'Saved “') + name + '”');
+};
+$('saveName').addEventListener('keydown', e => { if (e.key === 'Enter') $('saveBtn').click(); e.stopPropagation(); });
+$('loadBtn').onclick = () => {
+  const name = $('saveList').value, s = saves()[name];
+  if (restore(s)) { $('saveName').value = name; say('Loaded “' + name + '”'); } else say('That save could not be read.');
+};
+$('delBtn').onclick = () => {
+  const name = $('saveList').value; if (!name || !confirm('Delete the save “' + name + '”?')) return;
+  const all = saves(); delete all[name]; store.set(SAVES_KEY, all); listSaves(); say('Deleted “' + name + '”');
+};
+// inside a claude.ai artifact plain downloads are blocked, so ask the viewer through its downloads capability
+const hostDownloads = window.claude?.use ? window.claude.use('downloads').catch(() => null) : Promise.resolve(null);
+$('exportBtn').onclick = async () => {
+  const name = $('saveName').value.trim() || 'slicewater';
+  const json = JSON.stringify({ name, ...snapshot() }, null, 1);
+  const filename = (name.replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-').toLowerCase() || 'slicewater') + '.json';
+  const dl = await hostDownloads;
+  if (dl) {
+    try { await dl.save({ filename, data: json }); say('Exported ' + filename); }
+    catch (e) { say(e?.code === 'declined' ? 'Export cancelled' : 'Export is not available here'); }
+    return;
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+  a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  say('Exported ' + filename);
+};
+$('importBtn').onclick = () => $('importFile').click();
+$('importFile').onchange = e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  f.text().then(t => {
+    let s; try { s = JSON.parse(t); } catch { s = null; }
+    if (!restore(s)) { say(f.name + ' is not a Slicewater settings file.'); return; }
+    $('saveName').value = typeof s.name === 'string' ? s.name.slice(0, 40) : f.name.replace(/\.json$/i, '');
+    say('Loaded ' + f.name + '. Press Save to keep it in this browser.');
+  });
+};
+listSaves();
+
+// keep the last setup so a reload picks up where you left off
+let lastSaved = '';
+function autosave() { const j = JSON.stringify(snapshot()); if (j !== lastSaved && store.set(LAST_KEY, JSON.parse(j))) lastSaved = j; }
+if (restore(store.get(LAST_KEY))) say('Restored your last setup');
+lastSaved = JSON.stringify(snapshot());
+setInterval(autosave, 3000);
+addEventListener('pagehide', autosave);
+
 /* ---------- Cyber-Y2K: code rain + pixel dust behind, NFO ticker in the header ---------- */
 (() => {
   const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const sc = $('stars'), sg = sc.getContext('2d'), tc = $('scroller'), tg = tc.getContext('2d');
   const CODE = ['zzfxG(...p)', 'for(i=0;i<len;i++)', 'ctx.decodeAudio', 'keygen.exe /s', 'slice[i]=b>>4', '0x174BPM', 'crc32 ok', 'patch host file', 'serial: SLW-0174-AMEN', 'ret 0', 'jmp loop', 'mov eax,break', 'xor eax,eax', 'push ebp', 'liquid.dll loaded', 'reese()', 'sub.freq=root', '[ cracked ]', 'access granted', 'evolve(32)'];
-  const MSG = '    ...  SLICEWATER v1.0a  ::  cracked by [ ZzFX ]  ::  supplied by [ FRANK FORCE ]  ::  hold SHIFT for the lead  ::  robot chords will wander for you  ::  evolve the break  ::  greetz to every junglist, every 174 head and everyone still chopping amens at 3am  ::  respect due  ...';
+  const MSG = '    ...  SLICEWATER v1.0a  ::  created by [ DOVE CHARLES ]  ::  ZzFX by [ FRANK FORCE ]  ::  hold SHIFT for the lead  ::  robot chords will wander for you  ::  evolve the break  ::  greetz to every junglist, every 174 head and everyone still chopping amens at 3am  ::  respect due  ...';
   const HUES = ['90,130,255', '127,216,255', '255,181,71', '125,255,138', '185,162,255', '95,242,207'];
   let cols = [], dust = [], off = 0, last = performance.now(), d = 1, fs = 13;
   function size() {
