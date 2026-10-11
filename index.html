@@ -5,9 +5,9 @@
 <title>Slicewater</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Silkscreen&family=Pirata+One&family=VT323&display=swap">
 <style>
-/* Layout: one 32-column instrument strip (drummer → rendered break → slicer), controls stacked beneath like a hardware sampler. Skinned as a Windows 95 desktop app. */
+/* Layout: one 32-column instrument strip (drummer → rendered break → slicer), controls stacked beneath like a hardware sampler. Skinned like a Y2K keygen. */
 :root {
   color-scheme: dark;
   --bg: #0a161d;
@@ -157,130 +157,164 @@ input[type=range] { width: 100%; accent-color: var(--aqua); margin: 0; height: 2
 .foot { color: var(--muted); font-size: 12.5px; margin: 0; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 
-/* ===== 90s skin: Windows 95 desktop, bevelled grey windows, black phosphor screens ===== */
+/* ===== Cyber-Y2K keygen skin: CRT navy, periwinkle phosphor, chrome blackletter, Winamp-style windows, NFO text ===== */
 :root {
-  color-scheme: light;
-  --bg: #008080; --panel: #c0c0c0; --panel-2: #c0c0c0; --line: #808080;
-  --ink: #000; --muted: #3a3a3a;
-  --aqua: #000080; --aqua-dim: #8080ff; --amber: #b00000; --amber-dim: #ffb4b4;
-  --scope: #39ff7a;
-  --f-display: Tahoma, Verdana, "Segoe UI", Geneva, sans-serif;
-  --f-mono: "Courier New", Courier, monospace;
-  --r: 0;
-  --raise: inset -1px -1px #0a0a0a, inset 1px 1px #fff, inset -2px -2px #808080, inset 2px 2px #dfdfdf;
-  --sink: inset -1px -1px #fff, inset 1px 1px #0a0a0a, inset -2px -2px #dfdfdf, inset 2px 2px #808080;
-  --well: inset -1px -1px #fff, inset 1px 1px #808080, inset -2px -2px #dfdfdf, inset 2px 2px #0a0a0a;
-  --title: linear-gradient(90deg, #000080, #1084d0);
-  --dither: repeating-conic-gradient(#fff 0 25%, #c0c0c0 0 50%) 0 0 / 2px 2px;
+  color-scheme: dark;
+  --bg: #02030a; --panel: rgba(4, 7, 22, .94); --panel-2: #0a1030; --line: #26326e;
+  --ink: #e4ecff; --muted: #a9b6ea;
+  --aqua: #7fd8ff; --aqua-dim: #1a3a66; --amber: #6f7dff; --amber-dim: #1c2366;
+  --lime: #ffffff; --scope: #7fd8ff;
+  --f-display: "Share Tech Mono", "Courier New", monospace;
+  --f-mono: "Share Tech Mono", "Courier New", monospace;
+  --f-pix: "Silkscreen", "Share Tech Mono", monospace;
+  --f-goth: "Pirata One", "Old English Text MT", serif;
+  --r: 10px;
+  --chrome: linear-gradient(180deg, #2b3a8c 0%, #121a4a 45%, #060a24 55%, #1a2668 100%);
+  --rim: inset 0 1px 0 rgba(200, 220, 255, .35), inset 0 -1px 0 rgba(0, 0, 0, .6);
+  --phos: 0 0 4px color-mix(in srgb, var(--aqua) 55%, transparent);
 }
-body { font-size: 13px; }
-button:focus-visible, input:focus-visible { outline: 1px dotted #000; outline-offset: -5px; }
+html, body { background: var(--bg); }
+body { font-family: var(--f-mono); font-size: 16px; line-height: 1.35; color: var(--ink); }
+#stars { position: fixed; inset: 0; width: 100%; height: 100%; z-index: -1; display: block; }
+button:focus-visible, input:focus-visible { outline: 1px dotted var(--lime); outline-offset: 2px; }
+::selection { background: var(--aqua); color: #000; }
 
-/* windows */
-.top, .deck, .panel, .drum { background: var(--panel); border: 0; border-radius: 0; box-shadow: var(--raise); padding: 3px 12px 12px; }
-.top::before, .deck::before, .panel h2, .drum-head {
-  background: var(--title); color: #fff; margin: 0 -9px 2px; padding: 3px 4px 3px 6px; min-height: 22px;
-  font: bold 12px/16px var(--f-display); letter-spacing: 0; text-transform: none;
-  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+/* windows: thin phosphor frames, rounded CRT corners */
+.top, .deck, .panel, .drum {
+  background: var(--panel); border: 1px solid color-mix(in srgb, var(--aqua) 50%, #1a2060); border-radius: var(--r); padding: 12px 14px 14px; position: relative;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .8), inset 0 0 30px rgba(60, 90, 255, .08), 0 0 0 1px rgba(127, 216, 255, .08), 0 0 24px rgba(40, 70, 255, .15);
+  backdrop-filter: blur(1.5px);
 }
-.top::before { content: "SLICEWATER.EXE"; flex: 0 0 calc(100% + 18px); }
-.deck::before { content: "Break Editor - BREAK.WAV"; }
-.panel h2::after, .top::before { background-image: none; }
-.panel h2::after { content: "×"; order: 9; width: 16px; height: 14px; background: var(--panel); color: #000; box-shadow: var(--raise); font: bold 12px/13px var(--f-display); text-align: center; }
-.panel h2 em { color: #fff; margin-left: auto; font-weight: normal; }
-.top { align-items: center; padding-bottom: 14px; }
+/* Winamp-style title bar with tiny caps + window buttons */
+.panel h2, .deck::before {
+  display: flex; align-items: center; justify-content: flex-start; gap: 8px;
+  margin: -12px -14px 10px; padding: 5px 10px; border-radius: var(--r) var(--r) 0 0;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--aqua) 85%, #fff), var(--aqua) 45%, color-mix(in srgb, var(--aqua) 60%, #000)); border-bottom: 1px solid #000;
+  font: 14px/1.4 var(--f-pix); letter-spacing: .16em; text-transform: uppercase; color: #02040e; text-shadow: 0 1px 0 rgba(255, 255, 255, .35);
+}
+.panel h2::before, .deck::before { content: "\25C6"; letter-spacing: 0; color: #02040e; }
+.panel h2 > em, .panel h2 > span { margin-left: auto; }
+.panel h2 > :not(em):not(span) { margin-left: 0; }
+.panel h2 em { font: 15px var(--f-mono); letter-spacing: .08em; font-style: normal; color: #02040e; text-transform: none; }
+.panel h2 .btn { font-size: 11px; padding: 1px 8px; letter-spacing: .05em; }
+.deck::before { content: "\25C6  slicewater :: break editor  ver 1.0"; text-transform: none; letter-spacing: .14em; display: flex; }
+.drum { border-top: 4px solid var(--aqua) !important; }
+.drum-head h3 { font: 14px var(--f-pix); letter-spacing: .1em; color: var(--aqua); }
 
-/* brand: WordArt */
-.brand h1 { font-family: Impact, "Arial Black", sans-serif; font-weight: normal; font-style: italic; letter-spacing: .01em; font-size: clamp(34px, 6vw, 54px);
-  background: linear-gradient(180deg, #ff00cc 0%, #ffcc00 45%, #00ccff 100%); -webkit-background-clip: text; background-clip: text; color: transparent;
-  filter: drop-shadow(3px 3px 0 #000080); }
+/* header: NFO + blackletter */
+.top { align-items: center; padding-top: 34px; }
+.top::before { content: "// welcome to slicewater.  version 1.0a.  the year is 2003."; position: absolute; top: 10px; left: 14px; font: 14px var(--f-mono); color: var(--muted); letter-spacing: .04em; }
+.brand h1 { font-family: var(--f-goth); font-weight: normal; font-size: clamp(64px, 12vw, 120px); line-height: .9; letter-spacing: .01em; margin: 2px 0 8px;
+  background:
+    linear-gradient(180deg, #ffffff 0%, #dfe6ff 30%, #8090d8 47%, #1c2470 52%, #9fb0f0 64%, #ffffff 82%, #aab8f0 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(-2px 0 0 rgba(255, 40, 80, .35)) drop-shadow(2px 0 0 rgba(60, 120, 255, .6)) drop-shadow(0 0 18px rgba(100, 140, 255, .45)); }
 .brand h1 span { color: transparent; }
-.brand p { color: #000; }
+.brand p { color: var(--muted); font-size: 15px; max-width: 54ch; }
+.brand p::before { content: "Cracked by  [ ZzFX     ]\A Supplied by [ FRANK FORCE ]\A Tested by   [ JUNGLISTS ]\A\A"; white-space: pre; display: block; color: var(--aqua); text-shadow: var(--phos); }
+#scroller { display: block; flex: 1 0 100%; width: 100%; height: 46px; order: 9; border-top: 1px dashed #2f3d8a; border-bottom: 1px dashed #2f3d8a; }
 
-/* readouts: LCD */
-.readout { background: #000; box-shadow: var(--well); padding: 4px 10px 2px; min-width: 86px; }
-.readout .lbl { color: #1f9d4a; }
-.readout b { font-family: "VT323", var(--f-mono); font-size: 30px; font-weight: normal; line-height: 1; color: var(--scope); text-shadow: 0 0 6px rgba(57,255,122,.6); }
-.lbl, .row-lbl { color: var(--muted); letter-spacing: .06em; }
+/* readouts: Winamp LCD */
+.readout { background: #000208; border: 1px solid #2f3d8a; border-radius: 4px; padding: 4px 10px 2px; min-width: 96px; box-shadow: inset 0 0 12px rgba(80, 120, 255, .18); }
+.readout .lbl { color: var(--muted); }
+.readout b { font-family: "VT323", monospace; font-size: 34px; font-weight: normal; line-height: 1; color: var(--aqua); text-shadow: var(--phos); }
+.lbl, .row-lbl { font-family: var(--f-pix); font-size: 12px; letter-spacing: .04em; white-space: nowrap; text-transform: uppercase; color: color-mix(in srgb, var(--aqua) 60%, var(--muted)); }
 
-/* buttons: raised, pressed = sunken + dither */
-.chip, .btn, .op, .padbtn, .seg button, .hitbtn, .code button, .toggle, .play, .seq .cell, kbd {
-  background: var(--panel); color: #000; border: 0; border-radius: 0; box-shadow: var(--raise);
+/* buttons: Winamp blobs */
+.chip, .btn, .op, .padbtn, .seg button, .hitbtn, .code button, .toggle, .play, kbd {
+  background: var(--chrome); color: var(--ink); border: 1px solid #4a5cc0; border-radius: 999px; box-shadow: var(--rim);
+  text-shadow: none; font-family: var(--f-mono); font-size: 15px; letter-spacing: .02em;
 }
-.chip, .btn { padding: 5px 12px; }
-.chip:active, .btn:active, .op:active, .padbtn:active, .seg button:active, .hitbtn:active, .code button:active, .play:active, .seq .cell:active { box-shadow: var(--sink); transform: none; }
-.chip[aria-pressed="true"], .btn[aria-pressed="true"], .seg button[aria-pressed="true"], .padbtn[aria-pressed="true"] {
-  background: var(--dither); color: #000; box-shadow: var(--sink); border: 0; font-weight: bold;
+.chip, .btn { padding: 3px 12px; }
+.chip:hover, .btn:hover, .op:hover, .padbtn:hover, .seg button:hover, .hitbtn:hover, .toggle:hover, .play:hover { border-color: var(--aqua); color: #fff; box-shadow: var(--rim), 0 0 10px rgba(127, 216, 255, .35); }
+.chip:active, .btn:active, .op:active, .padbtn:active, .seg button:active, .hitbtn:active, .play:active { transform: translateY(1px); }
+.chip[aria-pressed="true"], .btn[aria-pressed="true"], .seg button[aria-pressed="true"], .padbtn[aria-pressed="true"], .toggle.on {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--aqua) 45%, #fff) 0%, var(--aqua) 60%, color-mix(in srgb, var(--aqua) 85%, #000) 100%); color: #02040e; text-shadow: none; font-weight: bold; border-color: color-mix(in srgb, var(--aqua) 40%, #fff);
+  box-shadow: inset 0 1px 0 #fff, 0 0 12px color-mix(in srgb, var(--aqua) 55%, transparent);
 }
-.btn:hover, .chip:hover, .op:hover { border: 0; }
-.seg { border: 0; border-radius: 0; gap: 0; overflow: visible; }
-.seg button { padding: 5px 10px; font-family: var(--f-display); }
-.padbtn::before { border-radius: 0; width: 10px; height: 10px; background: #fff; box-shadow: var(--well); }
-.padbtn[aria-pressed="true"]::before { background: #00c000; box-shadow: var(--well); }
-.op { padding: 8px 10px; }
-.op small { color: #333; }
-.op.big { background: var(--panel); color: #000; outline: 1px solid #000; outline-offset: -1px; }
-.op.big small { color: #333; }
-.hitbtn { padding: 3px 10px; font-weight: bold; font-size: 12px; }
-.hitbtn.flash { background: var(--dither); box-shadow: var(--sink); }
-.toggle { padding: 6px 10px; }
-.toggle.on { color: #000; box-shadow: var(--sink); background: var(--dither); }
-.toggle input { accent-color: #000080; }
-kbd { font-family: var(--f-display); font-size: 11px; padding: 1px 5px; color: #000; display: inline-block; line-height: 1.3; }
-.play { width: 60px; height: 48px; color: #000; }
-.play.on { background: var(--dither); box-shadow: var(--sink); color: var(--amber); }
-.drum-head h3 { color: #fff; font-size: 12px; font-weight: bold; }
-.drum-head h3 kbd { vertical-align: 0; }
+.seg { border: 0; border-radius: 0; gap: 4px; overflow: visible; }
+.seg button { padding: 2px 10px; }
+.padbtn { font-family: var(--f-pix); font-size: 13px; letter-spacing: .08em; padding: 9px 16px; text-transform: uppercase; }
+.padbtn.small { font-size: 12px; padding: 7px 12px; }
+.padbtn::before { border-radius: 50%; width: 8px; height: 8px; background: #0a0f36; box-shadow: inset 0 0 0 1px #4a5cc0; }
+.padbtn[aria-pressed="true"]::before { background: #fff; box-shadow: 0 0 6px #fff; }
+.op { padding: 8px 12px; border-radius: 12px; }
+.op b { font-family: var(--f-pix); font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--aqua); line-height: 1.6; }
+.op small { color: var(--muted); font-size: 14px; line-height: 1.2; }
+.op.big { background: linear-gradient(180deg, color-mix(in srgb, var(--aqua) 45%, #fff) 0%, var(--aqua) 60%, color-mix(in srgb, var(--aqua) 85%, #000) 100%); border-color: color-mix(in srgb, var(--aqua) 40%, #fff); }
+.op.big b, .op.big small { color: #020a2a; }
+.hitbtn { font-family: var(--f-pix); font-size: 12px; letter-spacing: .08em; padding: 6px 10px; }
+.hitbtn.flash { background: var(--aqua); color: #000; }
+.toggle { padding: 4px 12px; }
+.toggle input { accent-color: var(--aqua); }
+kbd { font-size: 13px; padding: 0 6px; border-radius: 4px; display: inline-block; line-height: 1.4; }
+.play { width: 60px; height: 48px; border-radius: 50%; color: var(--aqua); }
+.play.on { color: #fff; border-color: var(--aqua); box-shadow: var(--rim), 0 0 14px rgba(127, 216, 255, .6); }
+.code button { font-size: 12px; padding: 0 8px; }
 
-/* step grid: sunken wells */
-.lane .cell { background: #fff; border-radius: 0; box-shadow: var(--well); }
-.cells .cell.alt { background: #e4e4e4; }
-.lane .cell[data-v="x"]::after { background: #000080; border-radius: 0; }
-.lane .cell[data-v="X"]::after { background: var(--amber); border-radius: 0; }
-.lane .cell[data-v="g"]::after { border-color: #000080; border-radius: 0; }
-.bass-lane .cell[data-v="r"], .bass-lane .cell[data-v="5"], .bass-lane .cell[data-v="o"] { background: #ffff80; }
-.bass-lane .cell[data-v="-"] { background: linear-gradient(#e0d040, #e0d040) center / 100% 6px no-repeat, #fff; }
-.cell.now { box-shadow: var(--well), inset 0 0 0 3px #ffff00; }
-.seq .cell { border: 0; border-radius: 0; font-family: var(--f-mono); }
-.seq .cell .tags { color: #000080; }
-.seq .cell.moved { color: var(--amber); }
-.seq .cell.sel { outline: 1px dotted #000; outline-offset: -5px; border: 0; }
-.seq .cell.now { background: #000080; color: #fff; box-shadow: var(--sink); }
-.seq .cell.now .tags { color: #fff; }
-.seq .cell.muted { background: repeating-linear-gradient(135deg, #c0c0c0 0 4px, #a0a0a0 4px 8px); }
+/* step grid */
+.lane .cell { background: #050925; border-radius: 2px; box-shadow: inset 0 0 0 1px #17205a; }
+.cells .cell.alt { background: #0a1038; }
+.lane .cell[data-v="x"]::after { background: var(--aqua); box-shadow: var(--phos); border-radius: 1px; }
+.lane .cell[data-v="X"]::after { background: #fff; box-shadow: 0 0 6px #fff; border-radius: 1px; }
+.lane .cell[data-v="g"]::after { border-color: var(--aqua); border-radius: 1px; }
+.bass-lane .cell { color: #020a2a; font-family: var(--f-pix); font-size: 8px; }
+.bass-lane .cell[data-v="r"], .bass-lane .cell[data-v="5"], .bass-lane .cell[data-v="o"] { background: var(--amber); box-shadow: 0 0 6px rgba(111, 125, 255, .6); }
+.bass-lane .cell[data-v="-"] { background: linear-gradient(#3a46b0, #3a46b0) center / 100% 3px no-repeat, #050925; }
+.bass-lane .row-lbl { color: var(--amber); }
+.cell.now { box-shadow: inset 0 0 0 1px #fff, 0 0 8px rgba(255, 255, 255, .4); }
+.seq .cell { background: #050925; border: 1px solid #1f2a6e; border-radius: 2px; color: var(--ink); font-family: "VT323", monospace; font-size: 18px; }
+.seq .cell .tags { color: var(--aqua); font-size: 12px; }
+.seq .cell.moved { color: var(--aqua); text-shadow: var(--phos); }
+.seq .cell.sel { border-color: #fff; box-shadow: 0 0 8px rgba(255, 255, 255, .4); }
+.seq .cell.now { background: var(--aqua); color: #000; box-shadow: 0 0 10px rgba(127, 216, 255, .6); }
+.seq .cell.now .tags { color: #000; }
+.seq .cell.muted { background: repeating-linear-gradient(135deg, #0a1038 0 3px, #000 3px 6px); }
 
 /* screens */
-#wave, #leadTrace, .code pre { background: #000; border-radius: 0; box-shadow: var(--well); }
-.wave-wrap { padding: 0; }
-.code pre { color: var(--scope); font-family: var(--f-mono); }
-.hint { color: #222; font-size: 12px; }
-.sub-field { border-top: 2px groove #fff; }
-.shift-pill { border: 0; border-radius: 0; box-shadow: var(--sink); background: #fff; }
-.shift-pill.on { background: #ffff80; }
-.chord-notes { color: #000; }
+#wave, #leadTrace, .code pre { background: #000208; border: 1px solid #2f3d8a; border-radius: 6px; box-shadow: inset 0 0 24px rgba(80, 120, 255, .15); }
+.code pre { color: var(--aqua); font-family: var(--f-mono); font-size: 14px; }
+.insp-big { font-family: var(--f-goth); font-weight: normal; font-size: 34px; color: #fff; line-height: 1.1; }
+.insp-big b { color: var(--aqua); text-shadow: var(--phos); font-family: "VT323", monospace; font-weight: normal; }
+.hint { color: #b4c0ee; font-size: 14.5px; line-height: 1.55; }
+.sub-field { border-top: 1px dashed #2f3d8a; }
+.shift-pill { border: 1px solid #2f3d8a; border-radius: 999px; background: #000208; }
+.shift-pill.on { border-color: #fff; background: #1c2a78; box-shadow: 0 0 12px rgba(127, 216, 255, .5); }
+.chord-notes { color: var(--aqua); font-size: 16px; }
+.sl output { color: var(--aqua); font-size: 15px; white-space: nowrap; }
 
-/* sliders: Win95 trackbar */
-input[type=range] { -webkit-appearance: none; appearance: none; background: transparent; height: 22px; }
-input[type=range]::-webkit-slider-runnable-track { height: 4px; background: #fff; box-shadow: var(--well); }
-input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 11px; height: 20px; margin-top: -8px; background: var(--panel); box-shadow: var(--raise); border: 0; }
-input[type=range]::-moz-range-track { height: 4px; background: #fff; box-shadow: var(--well); border: 0; }
-input[type=range]::-moz-range-thumb { width: 11px; height: 20px; background: var(--panel); box-shadow: var(--raise); border: 0; border-radius: 0; }
-.sl output { font-family: var(--f-mono); color: #000; }
+/* sliders: Winamp EQ */
+input[type=range] { -webkit-appearance: none; appearance: none; background: transparent; height: 18px; }
+input[type=range]::-webkit-slider-runnable-track { height: 3px; background: #1a2668; border-radius: 2px; box-shadow: inset 0 0 0 1px #3a4cb0; }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 10px; margin-top: -3.5px; border-radius: 3px; background: linear-gradient(180deg, #fff, var(--aqua) 50%, color-mix(in srgb, var(--aqua) 45%, #000) 51%, var(--aqua)); border: 1px solid #000; box-shadow: 0 0 6px color-mix(in srgb, var(--aqua) 50%, transparent); }
+input[type=range]::-moz-range-track { height: 3px; background: #1a2668; border: 0; }
+input[type=range]::-moz-range-thumb { width: 18px; height: 10px; border-radius: 3px; background: var(--aqua); border: 1px solid #000; }
 
-/* piano: plain black and white */
-.piano { box-shadow: var(--well); padding: 2px; background: #000; }
-.wk { background: #fff; border: 1px solid #000; border-top: 0; border-radius: 0; }
-.wk span { color: #555; }
-.bk { background: #000; border-radius: 0; box-shadow: inset -2px -2px #444; }
-.wk.lit { background: #8080ff; }
-.bk.lit { background: #000080; box-shadow: inset -2px -2px #8080ff; }
-.wk.root { background: #ff5050; }
-.bk.root { background: #b00000; box-shadow: inset -2px -2px #ff8080; }
-.foot { color: #fff; }
-.foot, .foot * { text-shadow: 1px 1px 0 #004040; }
+/* piano: glass keys */
+.wk { background: linear-gradient(180deg, #0a1038, #16206a 80%, #2a3a9a); border: 1px solid #4a5cc0; border-top: 0; border-radius: 0 0 4px 4px; }
+.wk span { color: var(--ink); font-family: var(--f-pix); font-size: 11px; }
+.bk { background: linear-gradient(180deg, #000, #050925); border: 1px solid #3a4cb0; border-top: 0; border-radius: 0 0 3px 3px; }
+.wk.lit { background: linear-gradient(180deg, var(--aqua), color-mix(in srgb, var(--aqua) 45%, #102080)); box-shadow: 0 0 14px rgba(127, 216, 255, .5); }
+.bk.lit { background: color-mix(in srgb, var(--aqua) 55%, #000); box-shadow: 0 0 10px var(--aqua); }
+.wk.root { background: linear-gradient(180deg, #fff, #9fb4ff); box-shadow: 0 0 16px rgba(255, 255, 255, .6); }
+.bk.root { background: #c8d4ff; box-shadow: 0 0 10px #fff; }
+.foot { color: var(--muted); font-size: 14px; text-align: center; }
+/* each window gets its own phosphor */
+[aria-label="Step inspector"] { --aqua: #ffb547; }
+[aria-label="Mutate"] { --aqua: #b9a2ff; }
+[aria-label="Mix"] { --aqua: #ff7a5c; }
+[aria-label="Pad"] { --aqua: #5ff2cf; }
+[aria-label="Pad"] .sub-field { --aqua: #c4ff4f; }
+[aria-label="Lead"] { --aqua: #7dff8a; }
+.drum:nth-child(5n+1) { --aqua: #7fd8ff; } .drum:nth-child(5n+2) { --aqua: #ffb547; } .drum:nth-child(5n+3) { --aqua: #b9a2ff; }
+.drum:nth-child(5n+4) { --aqua: #5ff2cf; } .drum:nth-child(5n) { --aqua: #c4ff4f; }
+/* hard corners everywhere */
+*, *::before, *::after { border-radius: 0 !important; }
+.play { width: 56px; height: 48px; }
 </style>
 
 <div class="app">
+  <canvas id="stars" aria-hidden="true"></canvas>
   <header class="top">
     <div class="brand">
       <h1>Slice<span>water</span></h1>
@@ -292,6 +326,7 @@ input[type=range]::-moz-range-thumb { width: 11px; height: 20px; background: var
       <div class="readout"><span class="lbl">Bar.Beat.16</span><b id="posOut">1.1.1</b></div>
       <label class="toggle" id="evolveLbl"><input type="checkbox" id="evolve"><span>Evolve</span></label>
     </div>
+    <canvas id="scroller" aria-hidden="true"></canvas>
   </header>
 
   <section class="deck" aria-label="Break and slicer">
@@ -356,8 +391,9 @@ input[type=range]::-moz-range-thumb { width: 11px; height: 20px; background: var
         </div>
         <div class="ctrl-row">
           <label class="toggle" id="robotLbl"><input type="checkbox" id="robot"><span>Robot chords</span></label>
-          <span class="lbl">every</span>
-          <div class="seg" id="robotEvery" role="group" aria-label="Robot changes chord every"></div>
+          <span class="lbl">pace</span>
+          <div class="seg" id="robotEvery" role="group" aria-label="How often Robot changes chord"></div>
+          <button class="padbtn small" id="robotPar" aria-pressed="false" hidden>Parallel</button>
           <span class="chord-notes" id="robotKey"></span>
         </div>
         <div class="field"><span class="lbl">Chord type</span><div class="chips" id="chordChips" role="group" aria-label="Chord type"></div></div>
@@ -375,7 +411,7 @@ input[type=range]::-moz-range-thumb { width: 11px; height: 20px; background: var
       </div>
       <div class="piano-wrap"><div class="piano" id="piano" aria-label="Piano, C3 to C5"></div></div>
     </div>
-    <p class="hint">Hold a key to play that chord. Turn <b>Pad</b> on to drone the chord until you turn it off. Turn <b>Latch</b> on and each key you tap sticks until you tap another (it changes chord) or tap the same root again (it lets go); turning Latch off releases it. Pump ducks the pad and sub on every kick that plays. While the beat runs, the sub plays the riff from the amber Bass lane (R root, 5 fifth, 8 octave, bar = hold) in whatever key the piano last played; pick Hold to sustain the root with the pad instead. <b>Robot chords</b> takes over the piano while the beat runs: it treats the chord you had as home, wanders through chords that belong in that key on the bar line you pick, and comes home every fourth change. Switch it off to go back to your chord. With <b>Chord glide</b> up, changing chord bends each ringing note to its nearest note in the new chord (try dragging across the keys); set it to off for clean cuts.</p>
+    <p class="hint">Hold a key to play that chord. Turn <b>Pad</b> on to drone the chord until you turn it off. Turn <b>Latch</b> on and each key you tap sticks until you tap another (it changes chord) or tap the same root again (it lets go); turning Latch off releases it. Pump ducks the pad and sub on every kick that plays. While the beat runs, the sub plays the riff from the amber Bass lane (R root, 5 fifth, 8 octave, bar = hold) in whatever key the piano last played; pick Hold to sustain the root with the pad instead. <b>Robot chords</b> takes over the piano while the beat runs: it treats the chord you had as home, wanders through chords that belong in that key in 8-bar phrases, each with its own rhythm of changes (like 2·1·1·4 or 1·1·2·2·2; the bracket shows where it is), and every phrase starts back home. Pace picks slower or busier rhythms. Turn on <b>Parallel</b> and it only moves the root: every chord keeps the type you have selected (change it while it runs if you like). Switch it off to go back to your chord. With <b>Chord glide</b> up, changing chord bends each ringing note to its nearest note in the new chord (try dragging across the keys); set it to off for clean cuts.</p>
   </section>
 
   <section class="panel" aria-label="Lead">
@@ -845,13 +881,13 @@ function drawWaveBase() {
   const css = getComputedStyle(document.documentElement);
   const sw = W/N;
   for (let s = 0; s < N; s++) {
-    if ((s >> 2) % 2) { g.fillStyle = 'rgba(57,255,122,0.05)'; g.fillRect(s*sw, 0, sw, H); }
-    g.fillStyle = s % 4 ? 'rgba(132,167,170,0.16)' : 'rgba(132,167,170,0.4)';
+    if ((s >> 2) % 2) { g.fillStyle = 'rgba(60,90,255,0.08)'; g.fillRect(s*sw, 0, sw, H); }
+    g.fillStyle = s % 4 ? 'rgba(90,120,230,0.16)' : 'rgba(90,120,230,0.4)';
     g.fillRect(Math.round(s*sw), 0, 1, H);
   }
   if (breakData) {
     const L = breakData.length, mid = H/2;
-    g.fillStyle = css.getPropertyValue('--scope').trim() || '#39ff7a';
+    g.fillStyle = css.getPropertyValue('--scope').trim() || '#7fd8ff';
     for (let x = 0; x < W; x++) {
       const a = Math.floor(x*L/W), b = Math.floor((x + 1)*L/W);
       let mn = 0, mx = 0;
@@ -859,7 +895,7 @@ function drawWaveBase() {
       g.fillRect(x, mid - mx*mid*.92, 1, Math.max(1, (mx - mn)*mid*.92));
     }
   }
-  g.fillStyle = 'rgba(132,167,170,0.7)';
+  g.fillStyle = 'rgba(90,120,230,0.7)';
   g.font = `${10*(window.devicePixelRatio || 1)}px "JetBrains Mono", monospace`;
   for (let s = 0; s < N; s += 4) g.fillText(String(s + 1), s*sw + 4, 12*(window.devicePixelRatio || 1));
   drawWave();
@@ -869,13 +905,13 @@ function drawWave() {
   g.clearRect(0, 0, W, H);
   g.drawImage(waveBase, 0, 0);
   const sc = seq[sel];
-  g.strokeStyle = '#39ff7a'; g.lineWidth = 2;
+  g.strokeStyle = '#7fd8ff'; g.lineWidth = 2;
   g.strokeRect(sc.src*sw + 1, 1, sw - 2, H - 2);
   if (nowStep >= 0) {
     const c = seq[nowStep];
     if (!c.mute) {
-      g.fillStyle = 'rgba(255,255,0,0.22)'; g.fillRect(c.src*sw, 0, sw, H);
-      g.fillStyle = '#ffff00'; g.fillRect(c.src*sw, H - 4, sw, 4);
+      g.fillStyle = 'rgba(127,216,255,0.16)'; g.fillRect(c.src*sw, 0, sw, H);
+      g.fillStyle = '#ffffff'; g.fillRect(c.src*sw, H - 4, sw, 4);
     }
   }
 }
@@ -1367,7 +1403,14 @@ function markOct() { $('subOct').querySelectorAll('button').forEach(b => b.setAt
 buildPiano(); markChord(); markWave(); markOct(); paintPad(); paintSub(pad.root);
 
 /* ---------- Robot chords: picks a progression in the key you started it in, like Evolve for the pad ---------- */
-const robot = { on: false, every: 2, home: null, bar: 0, changes: 0 };
+const robot = { on: false, pace: 'med', parallel: false, home: null, pat: null, seg: 0, left: 0 };
+// harmonic rhythms: bar lengths for one 8-bar phrase; the first chord of each phrase is home
+const ROBOT_PATS = {
+  slow: [[4, 4], [2, 2, 4], [4, 2, 2], [3, 3, 2], [2, 4, 2], [6, 2], [3, 1, 4]],
+  med: [[2, 2, 2, 2], [2, 2, 1, 3], [1, 1, 2, 4], [2, 1, 1, 4], [3, 1, 2, 2], [2, 2, 3, 1], [1, 1, 2, 2, 2], [2, 1, 1, 2, 2]],
+  fast: [[1, 1, 2, 1, 1, 2], [1, 1, 1, 1, 2, 2], [2, 1, 1, 2, 1, 1], [1, 1, 1, 1, 1, 1, 2], [1, 2, 1, 1, 2, 1], [1, 1, 2, 1, 1, 1, 1], [2, 1, 1, 1, 1, 2]],
+};
+const robotNewPat = () => { const ps = ROBOT_PATS[robot.pace]; let p; do p = ps[Math.random()*ps.length | 0]; while (ps.length > 1 && p === robot.pat); return p; };
 // degree (semitones above the key) → chord type, with a weight; tables chosen by whether the home chord is minor or major
 const ROBOT_MOVES = {
   minor: [[0, 'm9', 3], [5, 'm9', 3], [8, 'maj9', 3], [10, '9', 2], [3, 'maj7', 2], [7, 'm7', 1.5], [10, 'sus2', 1], [5, 'm11', 1], [8, 'maj7', 1], [0, 'm11', 1]],
@@ -1375,14 +1418,20 @@ const ROBOT_MOVES = {
 };
 function robotPick() {
   const h = robot.home, moves = ROBOT_MOVES[SCALES[h.chord].name === 'minor' ? 'minor' : 'major'];
-  robot.changes++;
   let d, c;
-  if (robot.changes % 4 === 0) { d = 0; c = h.chord; }   // come home every fourth change, like Evolve
-  else {
+  if (robot.parallel) {
+    // parallel: same moves through the key, but every chord keeps the shape you're on and only the root moves
+    const w = {};
+    moves.forEach(([dd, , ww]) => { if ((h.root + dd) % 12 !== pad.root % 12) w[dd] = (w[dd] || 0) + ww; });
+    const opts = Object.entries(w);
+    let r = Math.random()*opts.reduce((a, o) => a + o[1], 0);
+    d = +(opts.find(o => (r -= o[1]) <= 0) || opts[0])[0];
+  } else {
     const opts = moves.filter(([dd, cc]) => !((h.root + dd) % 12 === pad.root % 12 && cc === pad.chord));
     let r = Math.random()*opts.reduce((a, o) => a + o[2], 0);
     [d, c] = opts.find(o => (r -= o[2]) <= 0) || opts[0];
   }
+  if (robot.parallel) c = pad.chord;
   let root = h.root + d;
   if (d > 6) root -= 12;
   while (root < LOW) root += 12;
@@ -1395,22 +1444,27 @@ function robotApply(ch) {
   padPlay(ch.root);
 }
 function robotStep(step, t) {
-  if (!robot.on || step % 16) return;
-  if (robot.bar++ % robot.every) return;
-  if (robot.bar === 1) return;   // first downbeat after switching on keeps the home chord
-  const ch = robotPick();
-  setTimeout(() => robotApply(ch), Math.max(0, (t - ctx.currentTime)*1000 - 5));
+  if (!robot.on || step % 16 || --robot.left > 0) return;
+  // segment over: next chord in the pattern, or back home with a fresh pattern when the phrase ends
+  let ch;
+  if (++robot.seg >= robot.pat.length) { robot.pat = robotNewPat(); robot.seg = 0; ch = { root: robot.home.root, chord: robot.parallel ? pad.chord : robot.home.chord }; }
+  else ch = robotPick();
+  robot.left = robot.pat[robot.seg];
+  setTimeout(() => { robotApply(ch); paintRobot(); }, Math.max(0, (t - ctx.currentTime)*1000 - 5));
 }
 function paintRobot() {
   $('robotLbl').classList.toggle('on', robot.on);
   $('robot').checked = robot.on;
   $('robotKey').textContent = robot.on && robot.home ? 'key: ' + NOTE[robot.home.root % 12] + ' ' + (SCALES[robot.home.chord].name === 'minor' ? 'minor' : 'major') : '';
-  $('robotEvery').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.n === robot.every));
+  $('robotPar').hidden = !robot.on;
+  $('robotPar').setAttribute('aria-pressed', robot.parallel);
+  if (robot.on && robot.pat) $('robotKey').textContent += ' · ' + robot.pat.map((n, i) => i === robot.seg ? `[${n}]` : n).join(' ');
+  $('robotEvery').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.n === robot.pace));
 }
 $('robot').addEventListener('change', e => {
   robot.on = e.target.checked;
   if (robot.on) {
-    robot.home = { root: pad.root, chord: pad.chord }; robot.bar = 0; robot.changes = 0;
+    robot.home = { root: pad.root, chord: pad.chord }; robot.pat = robotNewPat(); robot.seg = 0; robot.left = robot.pat[0] + 1;   // +1: the next downbeat starts the phrase
     if (!sounding.length) padPlay(pad.root);
   } else if (robot.home) {
     // like Evolve: switching off goes back to where you started
@@ -1420,11 +1474,12 @@ $('robot').addEventListener('change', e => {
   }
   paintRobot();
 });
-[1, 2, 4].forEach(n => {
-  const b = document.createElement('button'); b.textContent = n + (n === 1 ? ' bar' : ' bars'); b.dataset.n = n;
-  b.onclick = () => { robot.every = n; paintRobot(); };
+['slow', 'med', 'fast'].forEach(n => {
+  const b = document.createElement('button'); b.textContent = n[0].toUpperCase() + n.slice(1); b.dataset.n = n;
+  b.onclick = () => { robot.pace = n; paintRobot(); };   // takes effect from the next phrase
   $('robotEvery').appendChild(b);
 });
+$('robotPar').onclick = () => { robot.parallel = !robot.parallel; paintRobot(); };
 paintRobot();
 
 /* ---------- Lead: mono glide sine that improvises in the chord's scale ---------- */
@@ -1592,12 +1647,12 @@ function drawTrace() {
   const g = traceCv.getContext('2d'), W = traceCv.width, H = traceCv.height, sw = W/64;
   g.clearRect(0, 0, W, H);
   const base = 12*(lead.oct + 1) + pad.root % 12, span = 27, row = H/span;
-  for (let k = 0; k <= 24; k += 12) { g.fillStyle = 'rgba(132,167,170,0.25)'; g.fillRect(0, H - (k + .5)*row, W, 1); }
+  for (let k = 0; k <= 24; k += 12) { g.fillStyle = 'rgba(90,120,230,0.25)'; g.fillRect(0, H - (k + .5)*row, W, 1); }
   const off = 64 - trace.length;
   trace.forEach((m, i) => {
     if (m === null) return;
     const y = H - (m - base + 1)*row;
-    g.fillStyle = i === trace.length - 1 && mel.sounding ? '#ffff00' : '#39ff7a';
+    g.fillStyle = i === trace.length - 1 && mel.sounding ? '#ffffff' : '#7dff8a';
     g.fillRect((off + i)*sw, y, sw + .5, Math.max(2, row*.8));
   });
 }
@@ -1649,4 +1704,55 @@ new ResizeObserver(sizeWave).observe(wave);
 sizeTrace();
 new ResizeObserver(sizeTrace).observe(traceCv);
 requestAnimationFrame(frame);
+
+/* ---------- Cyber-Y2K: code rain + pixel dust behind, NFO ticker in the header ---------- */
+(() => {
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const sc = $('stars'), sg = sc.getContext('2d'), tc = $('scroller'), tg = tc.getContext('2d');
+  const CODE = ['zzfxG(...p)', 'for(i=0;i<len;i++)', 'ctx.decodeAudio', 'keygen.exe /s', 'slice[i]=b>>4', '0x174BPM', 'crc32 ok', 'patch host file', 'serial: SLW-0174-AMEN', 'ret 0', 'jmp loop', 'mov eax,break', 'xor eax,eax', 'push ebp', 'liquid.dll loaded', 'reese()', 'sub.freq=root', '[ cracked ]', 'access granted', 'evolve(32)'];
+  const MSG = '    ...  SLICEWATER v1.0a  ::  cracked by [ ZzFX ]  ::  supplied by [ FRANK FORCE ]  ::  hold SHIFT for the lead  ::  robot chords will wander for you  ::  evolve the break  ::  greetz to every junglist, every 174 head and everyone still chopping amens at 3am  ::  respect due  ...';
+  const HUES = ['90,130,255', '127,216,255', '255,181,71', '125,255,138', '185,162,255', '95,242,207'];
+  let cols = [], dust = [], off = 0, last = performance.now(), d = 1, fs = 13;
+  function size() {
+    d = devicePixelRatio || 1; fs = 13*d;
+    sc.width = innerWidth*d | 0; sc.height = innerHeight*d | 0;
+    const r = tc.getBoundingClientRect(); tc.width = Math.max(1, r.width*d | 0); tc.height = Math.max(1, r.height*d | 0);
+    const n = Math.ceil(sc.width/(fs*9));
+    cols = Array.from({ length: n }, (_, i) => ({ x: i*fs*9 + Math.random()*fs*3, y: Math.random()*sc.height, v: .4 + Math.random(), t: CODE[Math.random()*CODE.length | 0], h: HUES[Math.random() < .55 ? 0 : Math.random()*HUES.length | 0] }));
+    dust = Array.from({ length: 70 }, () => ({ x: Math.random()*sc.width, y: Math.random()*sc.height*.6, s: (2 + Math.random()*5 | 0)*d*2, a: Math.random() }));
+    sg.fillStyle = '#02030a'; sg.fillRect(0, 0, sc.width, sc.height);
+  }
+  function tick(now) {
+    const dt = Math.min(.05, (now - last)/1000); last = now;
+    const W = sc.width, H = sc.height, sp = playing ? 3 : 1;
+    sg.fillStyle = 'rgba(2,3,10,.14)'; sg.fillRect(0, 0, W, H);
+    sg.font = `${fs | 0}px "Share Tech Mono", monospace`;
+    for (const c of cols) {
+      c.y += c.v*sp*fs*dt*4;
+      if (c.y > H + fs*4) { c.y = -fs; c.t = CODE[Math.random()*CODE.length | 0]; c.v = .4 + Math.random(); }
+      sg.fillStyle = `rgba(${c.h},.28)`; sg.fillText(c.t, c.x, c.y);
+      sg.fillStyle = 'rgba(200,225,255,.5)'; sg.fillText(c.t[Math.random()*c.t.length | 0], c.x, c.y + fs*1.2);
+    }
+    for (const p of dust) {
+      p.a += (Math.random() - .5)*.2*sp; p.a = Math.max(0, Math.min(1, p.a));
+      if (Math.random() < .002*sp) { p.x = Math.random()*W; p.y = Math.random()*H*.6; }
+      sg.fillStyle = `rgba(60,80,255,${p.a*.35})`; sg.fillRect(p.x, p.y, p.s, p.s);
+    }
+    const w = tc.width, h = tc.height, tf = h*.42;
+    tg.clearRect(0, 0, w, h);
+    tg.font = `${tf | 0}px "Silkscreen", monospace`; tg.textBaseline = 'middle';
+    const cw = tf*.86; off = (off + dt*tf*(playing ? 5 : 3)) % (MSG.length*cw);
+    const first = Math.floor(off/cw);
+    for (let i = 0; i*cw - (off % cw) < w + cw; i++) {
+      const ch = MSG[(first + i) % MSG.length], x = i*cw - (off % cw);
+      const y = h/2 + Math.sin(now/520 + x/(w*.16))*h*.14;
+      tg.fillStyle = 'rgba(60,90,255,.8)'; tg.fillText(ch, x + d*2, y);
+      tg.fillStyle = '#cfe6ff'; tg.fillText(ch, x, y);
+    }
+    if (!still) requestAnimationFrame(tick);
+  }
+  size(); addEventListener('resize', size);
+  if (document.fonts) document.fonts.ready.then(size);
+  requestAnimationFrame(tick);
+})();
 </script>
