@@ -57,6 +57,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--amber); out
 .chip[aria-pressed="true"] { background: var(--aqua); color: #06211e; border-color: var(--aqua); font-weight: 600; }
 .btn:hover, .chip:hover { border-color: var(--muted); }
 .deck-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.deck-src { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.deck.sampled #lanes > .lane:not(.bass-lane), .deck.sampled #presets, .deck.sampled .deck-actions { opacity: .32; pointer-events: none; }
 .grid-scroll { overflow-x: auto; margin-inline: -4px; padding-inline: 4px; }
 .grid-inner { min-width: 780px; display: grid; gap: 4px; }
 .row { display: grid; grid-template-columns: 70px 1fr; align-items: center; gap: 8px; }
@@ -108,6 +110,7 @@ kbd { font-family: var(--f-mono); font-size: 11px; border: 1px solid var(--line)
 .op.big { background: var(--amber); color: #2a1a04; border-color: var(--amber); }
 .op.big small { color: #4d3410; }
 .op:active { transform: translateY(1px); }
+.op { touch-action: none; user-select: none; -webkit-user-select: none; }
 
 .sliders { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px 18px; }
 .sl { display: grid; gap: 4px; min-width: 0; }
@@ -228,6 +231,9 @@ button:focus-visible, input:focus-visible { outline: 1px dotted var(--lime); out
 .chip, .btn { padding: 3px 12px; }
 .chip:hover, .btn:hover, .op:hover, .padbtn:hover, .seg button:hover, .hitbtn:hover, .toggle:hover, .play:hover { border-color: var(--aqua); color: #fff; box-shadow: var(--rim), 0 0 10px rgba(127, 216, 255, .35); }
 .chip:active, .btn:active, .op:active, .padbtn:active, .seg button:active, .hitbtn:active, .play:active { transform: translateY(1px); }
+.op.held { border-color: var(--aqua); color: #fff; background: color-mix(in srgb, var(--aqua) 22%, var(--panel-2)); box-shadow: var(--rim), 0 0 14px rgba(127, 216, 255, .55); transform: translateY(1px); }
+.op.big.held { background: #fff0c2; color: #2a1a04; }
+.seq.fxing .cell { border-color: var(--aqua); }
 .chip[aria-pressed="true"], .btn[aria-pressed="true"], .seg button[aria-pressed="true"], .padbtn[aria-pressed="true"], .toggle.on {
   background: linear-gradient(180deg, color-mix(in srgb, var(--aqua) 45%, #fff) 0%, var(--aqua) 60%, color-mix(in srgb, var(--aqua) 85%, #000) 100%); color: #02040e; text-shadow: none; font-weight: bold; border-color: color-mix(in srgb, var(--aqua) 40%, #fff);
   box-shadow: inset 0 1px 0 #fff, 0 0 12px color-mix(in srgb, var(--aqua) 55%, transparent);
@@ -367,6 +373,18 @@ input[type=range]::-moz-range-thumb { width: 18px; height: 10px; border-radius: 
   <div class="cols">
   <div class="col col-drums">
   <section class="deck" aria-label="Break and slicer">
+    <div class="deck-src">
+      <span class="lbl">Source</span>
+      <div class="chips" id="srcChips" role="group" aria-label="Break source">
+        <button class="chip" data-kind="synth">Synth kit</button>
+        <button class="chip" data-kind="amen">Amen break</button>
+        <button class="chip" data-kind="custom" id="srcCustom" hidden></button>
+        <button class="btn" id="srcLoad">Load sample…</button>
+        <input type="file" id="srcFile" accept="audio/*,.wav,.aif,.aiff,.mp3,.flac,.ogg" hidden>
+      </div>
+      <div class="chips" id="srcBars" role="group" aria-label="Bars to slice"></div>
+      <span class="chord-notes" id="srcInfo"></span>
+    </div>
     <div class="deck-head">
       <div class="chips" id="presets" role="group" aria-label="Break presets"></div>
       <div class="deck-actions">
@@ -405,6 +423,7 @@ input[type=range]::-moz-range-thumb { width: 18px; height: 10px; border-radius: 
     <section class="panel" aria-label="Mutate">
       <h2>Mutate <span><button class="btn" id="undo">Undo</button> <button class="btn" id="reset">Reset order</button></span></h2>
       <div class="ops" id="ops"></div>
+      <p class="hint">Hold a button to bend the beat while it plays. Let go and it snaps back. Hold several at once to stack them.</p>
       <div class="sl">
         <div class="top-line"><label class="lbl" for="chaos">Chaos</label><output id="chaosOut">45%</output></div>
         <input type="range" id="chaos" min="0" max="1" step="0.01" value="0.45">
@@ -619,6 +638,10 @@ const PRESETS = {
 const N = 32;
 let pattern = {};
 let preset = 'Think';
+// where the break comes from: the synth kit, the bundled amen, or a sample loaded from disk
+const src = { kind: 'synth', pair: 0, auto: true };
+const samples = { amen: null, custom: null };
+function sampleSource() { return src.kind !== 'synth' ? samples[src.kind] : null; }
 let seed = 7;
 const cleanCell = i => ({ src: i, rev: false, stut: 1, pitch: 0, mute: false });
 let seq = Array.from({ length: N }, (_, i) => cleanCell(i));
@@ -641,6 +664,18 @@ function renderBreak() {
   const stepDur = 60/mix.bpm/4;
   const len = Math.round(stepDur*N*SR);
   const out = new Float32Array(len);
+  const smp = sampleSource();
+  if (smp) fitSample(smp, out); else synthBreak(out, len, stepDur);
+  let peak = smp ? smp.peak : 0;
+  if (!smp) for (let i = 0; i < len; i++) peak = Math.max(peak, Math.abs(out[i]));
+  if (peak > 0) { const g = .95/peak; for (let i = 0; i < len; i++) out[i] *= g; }
+  breakData = out; renderStep = stepDur; renderBpm = mix.bpm; peaksDirty = true;
+  if (ctx && leadAmp) applyLead();
+  makeBuffers();
+  drawWaveBase();
+}
+// the synth drummer: pattern lanes + seeded ghosts played through the ZzFX kit
+function synthBreak(out, len, stepDur) {
   const rng = mulberry(seed);
   const h = mix.humanize;
   const hits = [];
@@ -660,13 +695,20 @@ function renderBreak() {
       for (let i = 0; i < smp.length; i++) out[(pos + i) % len] += smp[i];
     }
   }
-  let peak = 0;
-  for (let i = 0; i < len; i++) peak = Math.max(peak, Math.abs(out[i]));
-  if (peak > 0) { const g = .95/peak; for (let i = 0; i < len; i++) out[i] *= g; }
-  breakData = out; renderStep = stepDur; renderBpm = mix.bpm; peaksDirty = true;
-  if (ctx && leadAmp) applyLead();
-  makeBuffers();
-  drawWaveBase();
+}
+// a recorded break: take two bars and stretch them onto the grid by resampling,
+// so a 138 BPM break played at 174 comes out pitched up like a sped-up record
+function fitSample(smp, out) {
+  const { data, barLen, bars } = smp, len = out.length;
+  const start = Math.min(src.pair, Math.max(0, Math.floor(bars/2) - 1))*2*barLen;
+  const span = 2*barLen, step = span/len, L = data.length;
+  for (let i = 0; i < len; i++) {
+    const x = (start + i*step) % L, j = x | 0, f = x - j;
+    out[i] = data[j]*(1 - f) + data[(j + 1) % L]*f;
+  }
+  // short fades so the loop point never clicks
+  const fade = Math.min(len >> 1, 64);
+  for (let i = 0; i < fade; i++) { out[i] *= i/fade; out[len - 1 - i] *= i/fade; }
 }
 let renderTimer = 0;
 function queueRender() { clearTimeout(renderTimer); renderTimer = setTimeout(renderBreak, 90); }
@@ -769,7 +811,7 @@ function scheduler() {
     const sd = stepDur(), d = mix.swing*sd*.5, odd = step % 2;
     const t = nextTime + (odd ? d : 0);
     const dur = odd ? sd - d : sd + d;
-    const cell = seq[step];
+    const cell = playSeq()[step];
     playSlice(cell, t, dur);
     if (!cell.mute && !cell.rev && pattern.kick[cell.src] !== '.') duckPad(t);
     playRiffStep(step, t, sd);
@@ -783,6 +825,7 @@ function scheduler() {
 }
 function onLoop() {
   loops++;
+  advanceBars();
   if (!evolveOn) return;
   if (loops % 4 === 0) { seq = clone(evolveHome); }
   else if (Math.random() < .7) { seq = clone(evolveHome); mutateAll(seq, mix.chaos ?? chaos()); }
@@ -791,6 +834,7 @@ function onLoop() {
 function start() {
   ensureAudio();
   if (!fwdBuf) makeBuffers();
+  rewindBars();
   playing = true; step = 0; loops = 0; nextTime = ctx.currentTime + .06; lastRiffRate = 0;
   if (riffActive()) subStop();
   timer = setInterval(scheduler, 25); scheduler();
@@ -858,6 +902,33 @@ const OPS = [
       for (let i = 0; i < 16; i++) s[i + 16] = { ...s[i] };
     } },
 ];
+// held effects: the mutate buttons bend what plays only while held; letting go snaps back to the sequence
+const held = new Map(); // button → effect
+let fx = null;
+const playSeq = () => fx || seq;
+function rebuildFx() {
+  fx = held.size ? clone(seq) : null;
+  if (fx) held.forEach(fn => fn(fx));
+  drawSeq(); drawWave();
+}
+function holdOn(btn, fn) {
+  if (held.has(btn)) return;
+  held.set(btn, fn); btn.classList.add('held');
+  fx ??= clone(seq); fn(fx);
+  drawSeq(); drawWave();
+}
+function holdOff(btn) {
+  if (!held.delete(btn)) return;
+  btn.classList.remove('held'); rebuildFx();
+}
+function bindHold(btn, fn) {
+  btn.addEventListener('pointerdown', e => { if (e.button) return; e.preventDefault(); btn.setPointerCapture(e.pointerId); holdOn(btn, fn); });
+  for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture', 'blur']) btn.addEventListener(ev, () => holdOff(btn));
+  const isKey = e => e.key === ' ' || e.key === 'Enter';
+  btn.addEventListener('keydown', e => { if (!isKey(e)) return; e.preventDefault(); e.stopPropagation(); if (!e.repeat) holdOn(btn, fn); });
+  btn.addEventListener('keyup', e => { if (!isKey(e)) return; e.preventDefault(); e.stopPropagation(); holdOff(btn); });
+  btn.addEventListener('contextmenu', e => e.preventDefault());
+}
 function mutateAll(s, a) {
   const pool = OPS.filter(o => o.id !== 'copy');
   const n = 1 + Math.round(a*2.5);
@@ -921,7 +992,8 @@ function buildSeq() {
 }
 const two = n => String(n).padStart(2, '0');
 function drawSeq() {
-  seq.forEach((c, s) => {
+  seqEl.closest('.seq').classList.toggle('fxing', !!fx);
+  playSeq().forEach((c, s) => {
     const b = seqCells[s];
     const tags = [c.rev ? '◂rev' : '', c.stut > 1 ? '×' + c.stut : '', c.pitch ? (c.pitch > 0 ? '+' : '') + c.pitch : ''].filter(Boolean);
     b.innerHTML = `<span>${two(c.src + 1)}</span><span class="tags">${tags.join('<br>')}</span>`;
@@ -984,7 +1056,7 @@ function drawWave() {
   g.strokeStyle = '#7fd8ff'; g.lineWidth = 2;
   g.strokeRect(sc.src*sw + 1, 1, sw - 2, H - 2);
   if (nowStep >= 0) {
-    const c = seq[nowStep];
+    const c = playSeq()[nowStep];
     if (!c.mute) {
       g.fillStyle = 'rgba(127,216,255,0.16)'; g.fillRect(c.src*sw, 0, sw, H);
       g.fillStyle = '#ffffff'; g.fillRect(c.src*sw, H - 4, sw, 4);
@@ -1036,12 +1108,12 @@ $('iPitch').addEventListener('change', () => { pitchPushed = false; });
 const opsEl = $('ops');
 const allBtn = document.createElement('button');
 allBtn.className = 'op big'; allBtn.innerHTML = '<b>Mutate</b><small>Two or three of these at once</small>';
-allBtn.onclick = () => commit(() => mutateAll(seq, chaos()));
+bindHold(allBtn, s => mutateAll(s, chaos()));
 opsEl.appendChild(allBtn);
 OPS.forEach(o => {
   const b = document.createElement('button'); b.className = 'op';
   b.innerHTML = `<b>${o.name}</b><small>${o.desc}</small>`;
-  b.onclick = () => commit(() => o.fn(seq, chaos()));
+  bindHold(b, s => o.fn(s, chaos()));
   opsEl.appendChild(b);
 });
 $('chaos').addEventListener('input', e => $('chaosOut').textContent = Math.round(e.target.value*100) + '%');
@@ -1066,6 +1138,92 @@ Object.keys(PRESETS).forEach(name => {
 function markPreset(name) { presetsEl.querySelectorAll('.chip').forEach(b => b.setAttribute('aria-pressed', b.dataset.name === name)); }
 markPreset(preset);
 $('reghost').onclick = () => { seed = Math.random()*1e9 | 0; renderBreak(); };
+/* ---------- Break source: synth kit, the bundled amen, or a sample from disk ---------- */
+let amenLoading = null;
+async function decode(buf) {
+  const ac = new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(1, 1, SR);
+  const ab = await ac.decodeAudioData(buf);
+  const data = new Float32Array(ab.length);
+  for (let c = 0; c < ab.numberOfChannels; c++) { const ch = ab.getChannelData(c); for (let i = 0; i < data.length; i++) data[i] += ch[i]/ab.numberOfChannels; }
+  return data;
+}
+// tempo from the filename if it says one ("..._138bpm_..."), otherwise the bar count that lands nearest 160
+function fitBars(data, name) {
+  const dur = data.length/SR, m = /(\d{2,3}(?:\.\d+)?)\s*bpm/i.exec(name || '');
+  let bpm = m ? +m[1] : 0, bars;
+  if (bpm >= 60 && bpm <= 220) bars = Math.max(1, Math.round(dur/(240/bpm)));
+  else {
+    bars = [1, 2, 4, 8, 16].reduce((a, b) => Math.abs(b*240/dur - 160) < Math.abs(a*240/dur - 160) ? b : a);
+    bpm = bars*240/dur;
+  }
+  let peak = 0;
+  for (let i = 0; i < data.length; i++) peak = Math.max(peak, Math.abs(data[i]));
+  return { data, bars, bpm, barLen: 240/bpm*SR, name, peak };
+}
+function loadAmen() {
+  if (samples.amen) return Promise.resolve(samples.amen);
+  return amenLoading ??= fetch('amen.wav').then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); })
+    .then(decode).then(d => samples.amen = fitBars(d, 'amen 138bpm'))
+    .catch(e => { amenLoading = null; throw e; });
+}
+function paintSource(msg) {
+  $('srcChips').querySelectorAll('.chip').forEach(b => b.setAttribute('aria-pressed', b.dataset.kind === src.kind));
+  const custom = samples.custom;
+  $('srcCustom').hidden = !custom;
+  if (custom) $('srcCustom').textContent = custom.name.replace(/\.[^.]+$/, '').slice(0, 24);
+  const smp = sampleSource(), pairs = smp ? Math.floor(smp.bars/2) : 0;
+  const bars = $('srcBars'); bars.innerHTML = '';
+  if (pairs > 1) {
+    for (let p = 0; p < pairs; p++) {
+      const b = document.createElement('button'); b.className = 'chip'; b.textContent = `Bars ${p*2 + 1}–${p*2 + 2}`; b.dataset.pair = p;
+      b.onclick = () => { src.pair = p; src.auto = false; paintSource(); renderBreak(); };
+      bars.appendChild(b);
+    }
+    const a = document.createElement('button'); a.className = 'chip'; a.id = 'srcAuto'; a.textContent = 'Auto';
+    a.title = 'Step through every pair of bars, one pair per loop';
+    a.onclick = () => { src.auto = !src.auto; paintSource(); };
+    bars.appendChild(a);
+  }
+  markPair();
+  document.querySelector('.deck').classList.toggle('sampled', !!smp);
+  $('srcInfo').textContent = msg ?? (smp ? `${Math.round(smp.bpm)} BPM source, ${smp.bars} bar${smp.bars > 1 ? 's' : ''}.${pairs > 1 && src.auto ? ' Auto plays them all in turn, two bars per loop.' : ''} Drum lanes and kit don't apply.` : '');
+}
+function markPair() {
+  $('srcBars').querySelectorAll('[data-pair]').forEach(b => b.setAttribute('aria-pressed', +b.dataset.pair === src.pair));
+  const a = $('srcAuto'); if (a) a.setAttribute('aria-pressed', src.auto);
+}
+// Auto: each time the slicer loops, move on to the next two bars of the sample
+function autoPairs() { const smp = sampleSource(); return smp && src.auto ? Math.floor(smp.bars/2) : 0; }
+function advanceBars() {
+  const pairs = autoPairs(); if (pairs < 2) return;
+  src.pair = (src.pair + 1) % pairs; renderBreak(); markPair();
+}
+function rewindBars() {
+  if (autoPairs() < 2 || src.pair === 0) return;
+  src.pair = 0; renderBreak(); markPair();
+}
+function setSource(kind) {
+  if (kind === 'amen' && !samples.amen) {
+    src.kind = 'amen'; paintSource('Loading amen…');
+    loadAmen().then(() => { if (src.kind === 'amen') { paintSource(); renderBreak(); } })
+      .catch(() => { if (src.kind === 'amen') { src.kind = 'synth'; paintSource('Could not load amen.wav. Open the page from a web server, not as a local file.'); renderBreak(); } });
+    return;
+  }
+  if (kind === 'custom' && !samples.custom) kind = 'synth';
+  src.kind = kind; paintSource(); renderBreak();
+}
+$('srcChips').addEventListener('click', e => { const b = e.target.closest('.chip'); if (b) { src.pair = 0; src.auto = true; setSource(b.dataset.kind); } });
+$('srcLoad').onclick = () => $('srcFile').click();
+$('srcFile').onchange = e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  paintSource('Decoding ' + f.name + '…');
+  f.arrayBuffer().then(decode).then(d => {
+    if (d.length < SR*.5) throw new Error('short');
+    samples.custom = fitBars(d, f.name); src.pair = 0; setSource('custom');
+  }).catch(() => paintSource('Could not read ' + f.name + ' as audio.'));
+};
+paintSource();
+
 $('clearPat').onclick = () => { for (const d of DRUMS) pattern[d.id] = '.'.repeat(N).split(''); markPreset(null); paintLanes(); renderBreak(); };
 
 /* ---------- Mix sliders ---------- */
@@ -1840,6 +1998,7 @@ function snapshot() {
     bass: { ...bass }, riff: riff.join(''),
     lead: without(lead, 'hold', 'latch'),
     robot: { pace: robot.pace, parallel: robot.parallel },
+    source: { ...src },
   };
 }
 // copy matching keys from src into target; slider-backed keys go through their slider so outputs and audio follow
@@ -1868,7 +2027,12 @@ function restore(s) {
     seq = s.seq.map((c, i) => ({ src: clamp(c?.src, 0, N - 1, i), rev: !!c?.rev, stut: clamp(c?.stut, 1, 8, 1), pitch: clamp(c?.pitch, -24, 24, 0), mute: !!c?.mute }));
   }
   drawSeq(); drawInspector();
-  renderBreak();
+  const sk = s.source?.kind;
+  if (sk === 'amen' || sk === 'synth' || (sk === 'custom' && samples.custom)) {
+    src.pair = Number.isInteger(s.source.pair) ? Math.max(0, Math.min(7, s.source.pair)) : 0;
+    if (typeof s.source.auto === 'boolean') src.auto = s.source.auto;
+    setSource(sk);
+  } else renderBreak();
   put(pad, s.pad, 'pad-');
   if (!CHORDS.some(c => c.id === pad.chord)) pad.chord = 'm9';
   if (!WAVES.some(w => w.v === pad.wave)) pad.wave = 2;
