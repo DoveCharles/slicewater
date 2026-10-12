@@ -309,7 +309,7 @@ input[type=range]::-moz-range-thumb { width: 18px; height: 10px; border-radius: 
 /* each window gets its own phosphor */
 [aria-label="Step inspector"] { --aqua: #ffb547; }
 [aria-label="Mutate"] { --aqua: #b9a2ff; }
-[aria-label="Mix"] { --aqua: #ff7a5c; }
+[aria-label="Drums"] { --aqua: #ff7a5c; }
 [aria-label="Pad"] { --aqua: #5ff2cf; }
 [aria-label="Pad"] .sub-field { --aqua: #c4ff4f; }
 [aria-label="Lead"] { --aqua: #7dff8a; }
@@ -445,8 +445,8 @@ input[type=range]::-moz-range-thumb { width: 18px; height: 10px; border-radius: 
     </section>
   </div>
 
-  <section class="panel" aria-label="Mix">
-    <h2>Mix &amp; feel</h2>
+  <section class="panel" aria-label="Drums">
+    <h2>Drums</h2>
     <div class="sliders" id="mix"></div>
   </section>
 
@@ -482,7 +482,7 @@ input[type=range]::-moz-range-thumb { width: 18px; height: 10px; border-radius: 
           <input type="file" id="importFile" accept=".json,application/json" hidden>
         </div>
         <span class="chord-notes" id="saveMsg"></span>
-        <p class="hint">Saves the whole setup: break, slices, kit, mix, master, pad, bass, lead and robot settings. Saves stay in this browser; export a file to keep them or move them to another computer. Your last setup comes back when you reopen the page.</p>
+        <p class="hint">Saves the whole setup: break, slices, kit, drums, master, pad, bass, lead and robot settings. Saves stay in this browser; export a file to keep them or move them to another computer. Your last setup comes back when you reopen the page.</p>
       </div>
     </div>
   </section>
@@ -710,25 +710,65 @@ function synthBreak(out, len, stepDur) {
     }
   }
 }
-// a recorded break: take two bars and stretch them onto the grid by resampling,
-// so a 138 BPM break played at 174 comes out pitched up like a sped-up record
+// a recorded break: take two bars and lay them onto the grid, played faster like a sped-up record.
+// Live hits land a little late and wander, so the strong hits are pinned to their 16ths and the
+// audio between them is stretched smoothly to fit: no gaps, no jumps, and every chop stays tight.
 function fitSample(smp, out) {
-  const { data, barLen, bars } = smp, len = out.length;
+  const { data, barLen, bars } = smp, len = out.length, L = data.length;
   const start = Math.min(src.pair, Math.max(0, Math.floor(bars/2) - 1))*2*barLen;
-  const span = 2*barLen, step = span/len, L = data.length;
+  const ss = 2*barLen/N, Lo = len/N, pins = samplePins(smp, start, ss);
+  let k = 0;
   for (let i = 0; i < len; i++) {
-    const x = (start + i*step) % L, j = x | 0, f = x - j;
+    const t = i/Lo;
+    while (pins[k + 1].step <= t) k++;
+    const p0 = pins[k], p1 = pins[k + 1];
+    const x0 = p0.pos + (t - p0.step)/(p1.step - p0.step)*(p1.pos - p0.pos);
+    const x = ((x0 % L) + L) % L, j = x | 0, f = x - j;
     out[i] = data[j]*(1 - f) + data[(j + 1) % L]*f;
   }
   // short fades so the loop point never clicks
   const fade = Math.min(len >> 1, 64);
   for (let i = 0; i < fade; i++) { out[i] *= i/fade; out[len - 1 - i] *= i/fade; }
 }
+// the strong hits (kicks, snares) and where they really are, plus copies a loop either side to wrap
+function samplePins(smp, start, ss) {
+  const key = start + ':' + ss;
+  if (smp.pins?.key === key) return smp.pins.list;
+  const { data } = smp, L = data.length, hop = Math.round(.001*SR), pre = Math.round(.003*SR);
+  const rms = (c, n) => { let e = 0; for (let j = 0; j < n; j++) { const v = data[((c + j) % L + L) % L]; e += v*v; } return Math.sqrt(e/n); };
+  const found = [];
+  let top = 0;
+  for (let i = 0; i < N; i++) {
+    const e = Math.round(start + i*ss);
+    let best = 0, pos = e;
+    for (let c = e - Math.round(.25*ss); c < e + .4*ss; c += hop) {
+      const v = rms(c, 3*hop) - rms(c - 8*hop, 8*hop);
+      if (v > best) { best = v; pos = c; }
+    }
+    found.push({ step: i, pos: pos - pre, str: best }); top = Math.max(top, best);
+  }
+  // keep only clear hits, and never let the stretch between two of them go past ±25%
+  const strong = found.filter(f => f.str > top*.4);
+  const pins = [];
+  for (const f of strong) {
+    const last = pins[pins.length - 1];
+    if (last) { const r = (f.pos - last.pos)/((f.step - last.step)*ss); if (r < .75 || r > 1.25) continue; }
+    pins.push(f);
+  }
+  if (!pins.length) pins.push({ step: 0, pos: start });
+  const span = 2*smp.barLen, list = [
+    ...pins.map(p => ({ step: p.step - N, pos: p.pos - span })),
+    ...pins,
+    ...pins.map(p => ({ step: p.step + N, pos: p.pos + span })),
+  ];
+  smp.pins = { key, list };
+  return list;
+}
 let renderTimer = 0;
 function queueRender() { clearTimeout(renderTimer); renderTimer = setTimeout(renderBreak, 90); }
 
 /* ---------- Audio graph ---------- */
-let ctx = null, bus, shaper, hp, filt, dryG, wetG, conv, comp, makeup, master, fwdBuf = null, revBuf = null;
+let ctx = null, bus, shaper, hp, filt, dryG, wetG, drumG, conv, comp, makeup, master, fwdBuf = null, revBuf = null;
 function ensureAudio() {
   if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return; }
   ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -736,14 +776,15 @@ function ensureAudio() {
   shaper = ctx.createWaveShaper(); shaper.oversample = '2x';
   hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 28;
   filt = ctx.createBiquadFilter(); filt.type = 'lowpass'; filt.Q.value = 1.1;
-  dryG = ctx.createGain(); wetG = ctx.createGain();
+  dryG = ctx.createGain(); wetG = ctx.createGain(); drumG = ctx.createGain();
   conv = ctx.createConvolver(); conv.buffer = makeIR(2.6);
   comp = ctx.createDynamicsCompressor();
   makeup = ctx.createGain();
   master = ctx.createGain();
   bus.connect(shaper).connect(hp).connect(filt);
-  filt.connect(dryG).connect(comp);
-  filt.connect(conv).connect(wetG).connect(comp);
+  filt.connect(dryG).connect(drumG);
+  filt.connect(conv).connect(wetG).connect(drumG);
+  drumG.connect(comp);  // the drums' own volume, before they meet the pad, bass and lead
   comp.connect(makeup).connect(master).connect(ctx.destination);
   buildPadGraph(); applyPad();
   buildLead(); applyLead();
@@ -777,7 +818,8 @@ function applyMix() {
   filt.frequency.setTargetAtTime(filterHz(), t, .03);
   dryG.gain.setTargetAtTime(1 - mix.space*.45, t, .03);
   wetG.gain.setTargetAtTime(mix.space*.9, t, .03);
-  master.gain.setTargetAtTime(mix.volume, t, .03);
+  drumG.gain.setTargetAtTime(mix.volume, t, .03);
+  master.gain.value = .8;
   const k = 1 + mix.drive*8, curve = new Float32Array(1024);
   for (let i = 0; i < 1024; i++) { const x = i/511.5 - 1; curve[i] = Math.tanh(k*x)/Math.tanh(k); }
   shaper.curve = curve;
