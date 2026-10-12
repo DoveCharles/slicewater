@@ -234,6 +234,7 @@ button:focus-visible, input:focus-visible { outline: 1px dotted var(--lime); out
 .op.held { border-color: var(--aqua); color: #fff; background: color-mix(in srgb, var(--aqua) 22%, var(--panel-2)); box-shadow: var(--rim), 0 0 14px rgba(127, 216, 255, .55); transform: translateY(1px); }
 .op.big.held { background: #fff0c2; color: #2a1a04; }
 .seq.fxing .cell { border-color: var(--aqua); }
+.chop { display: grid; gap: 6px; padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px dashed var(--line); }
 .chip[aria-pressed="true"], .btn[aria-pressed="true"], .seg button[aria-pressed="true"], .padbtn[aria-pressed="true"], .toggle.on {
   background: linear-gradient(180deg, color-mix(in srgb, var(--aqua) 45%, #fff) 0%, var(--aqua) 60%, color-mix(in srgb, var(--aqua) 85%, #000) 100%); color: #02040e; text-shadow: none; font-weight: bold; border-color: color-mix(in srgb, var(--aqua) 40%, #fff);
   box-shadow: inset 0 1px 0 #fff, 0 0 12px color-mix(in srgb, var(--aqua) 55%, transparent);
@@ -422,10 +423,23 @@ input[type=range]::-moz-range-thumb { width: 18px; height: 10px; border-radius: 
 
     <section class="panel" aria-label="Mutate">
       <h2>Mutate <span><button class="btn" id="undo">Undo</button> <button class="btn" id="reset">Reset order</button></span></h2>
+      <div class="chop">
+        <div class="ctrl-row">
+          <label class="toggle" id="chopLbl"><input type="checkbox" id="chop"><span>Chop robot</span></label>
+          <span class="lbl">new chop every</span>
+          <div class="seg" id="chopEvery" role="group" aria-label="How often the chop robot writes a new chop"></div>
+          <button class="btn" id="chopNow">Chop once</button>
+        </div>
+        <div class="sl">
+          <div class="top-line"><label class="lbl" for="chopWild">Wildness</label><output id="chopWildOut">50%</output></div>
+          <input type="range" id="chopWild" min="0" max="1" step="0.01" value="0.5">
+        </div>
+        <span class="chord-notes" id="chopInfo"></span>
+      </div>
       <div class="ops" id="ops"></div>
-      <p class="hint">Hold a button to bend the beat while it plays. Let go and it snaps back. Hold several at once to stack them.</p>
+      <p class="hint">The chop robot listens to the break, finds its kicks, snares and ghost notes, and writes new slice orders in jungle styles. Low Wildness keeps it close to the original break; high Wildness swaps styles, scrambles the in-between bits and adds fills. Hold a button to bend the beat while it plays. Let go and it snaps back. Hold several at once to stack them.</p>
       <div class="sl">
-        <div class="top-line"><label class="lbl" for="chaos">Chaos</label><output id="chaosOut">45%</output></div>
+        <div class="top-line"><label class="lbl" for="chaos">Chaos (held buttons)</label><output id="chaosOut">45%</output></div>
         <input type="range" id="chaos" min="0" max="1" step="0.01" value="0.45">
       </div>
     </section>
@@ -826,6 +840,10 @@ function scheduler() {
 function onLoop() {
   loops++;
   advanceBars();
+  if (chop.on && loops % chop.every === 0) {
+    seq = makeChop(); if (evolveOn) evolveHome = clone(seq); if (held.size) rebuildFx();
+    drawSeq(); drawInspector(); drawWave();
+  }
   if (!evolveOn) return;
   if (loops % 4 === 0) { seq = clone(evolveHome); }
   else if (Math.random() < .7) { seq = clone(evolveHome); mutateAll(seq, mix.chaos ?? chaos()); }
@@ -835,6 +853,7 @@ function start() {
   ensureAudio();
   if (!fwdBuf) makeBuffers();
   rewindBars();
+  if (chop.on) { seq = makeChop(); if (evolveOn) evolveHome = clone(seq); drawSeq(); drawInspector(); }
   playing = true; step = 0; loops = 0; nextTime = ctx.currentTime + .06; lastRiffRate = 0;
   if (riffActive()) subStop();
   timer = setInterval(scheduler, 25); scheduler();
@@ -1120,6 +1139,123 @@ $('chaos').addEventListener('input', e => $('chaosOut').textContent = Math.round
 $('undo').onclick = undo;
 function undo() { if (!history.length) return; seq = history.pop(); if (evolveOn) evolveHome = clone(seq); drawSeq(); drawInspector(); drawWave(); }
 $('reset').onclick = () => commit(() => { seq = Array.from({ length: N }, (_, i) => cleanCell(i)); });
+
+/* ---------- Chop robot: hears which slices are kicks, snares and ghosts, then writes jungle chops ---------- */
+const chop = { on: false, every: 2, wild: .5 };
+// one bar each: K kick, S snare, g ghost snare, h quiet slice, . let the break run on from the last slice
+const CHOP_STYLES = {
+  'Two-step': 'K...S.....K.S...',
+  'Amen':     'K.K.S..g.gK.S..g',
+  'Think':    'K.h.S..gh.K.S.gh',
+  'Roller':   'K.g.S..gK.K.S.g.',
+  'Halftime': 'K.......S.....g.',
+  'Steppa':   'K..K..S...K..S..',
+};
+let roleCache = null;
+function sliceRoles() {
+  if (roleCache?.data === breakData) return roleCache;
+  const all = [...Array(N).keys()];
+  let kick, snare, ghost, quiet;
+  if (!sampleSource()) {
+    // the synth kit: the drummer's lanes say exactly what's where
+    const at = (id, re) => all.filter(s => re.test(pattern[id][s]));
+    kick = at('kick', /[xX]/); snare = at('snare', /[xX]/); ghost = at('snare', /g/);
+    quiet = all.filter(s => pattern.kick[s] === '.' && pattern.snare[s] === '.');
+  } else {
+    // a recording: compare the start of each slice with just before it, and how much of it is bass
+    // (the hit can land a little off the grid, so look for the loudest moment in the slice's first half)
+    const d = breakData, L = d.length/N, fr = Math.round(.005*SR), nf = Math.ceil(d.length/fr);
+    const aL = 1 - Math.exp(-2*Math.PI*150/SR), env = new Float32Array(nf), lowEnv = new Float32Array(nf);
+    for (let i = 0, y = 0; i < d.length; i++) { y += aL*(d[i] - y); env[i/fr | 0] += d[i]*d[i]; lowEnv[i/fr | 0] += y*y; }
+    const E = (arr, k, n) => { let e = 0; for (let j = 0; j < n; j++) e += arr[((k + j) % nf + nf) % nf]; return Math.sqrt(e/(n*fr)); };
+    const f = all.map(s => {
+      const k0 = Math.round(s*L/fr) - 2, span = Math.max(3, Math.round(L*.55/fr));
+      let pk = k0, best = -1;
+      for (let k = k0; k < k0 + span; k++) { const v = E(env, k, 2); if (v > best) { best = v; pk = k; } }
+      const on = E(env, pk, 6), pre = E(env, pk - 6, 4);
+      return { s, hit: Math.max(0, on - pre*.8), bass: on ? E(lowEnv, pk, 6)/on : 0 };
+    });
+    const rank = (list, score) => [...list].sort((a, b) => score(b) - score(a)).map(x => x.s);
+    const bassy = f.filter(x => x.bass > .5), bright = f.filter(x => x.bass < .45);
+    kick = rank(bassy.length > 1 ? bassy : f, x => x.hit*x.bass).slice(0, 4);
+    snare = rank(bright.length > 1 ? bright : f, x => x.hit*(1 - x.bass)).filter(s => !kick.includes(s)).slice(0, 4);
+    ghost = rank(f, x => x.hit*(1 - x.bass)).filter(s => !kick.includes(s) && !snare.includes(s)).slice(0, 6);
+    quiet = rank(f, x => -x.hit).filter(s => !kick.includes(s) && !snare.includes(s)).slice(0, 10);
+  }
+  if (!kick.length) kick = [0];
+  if (!snare.length) snare = [4, 12];
+  if (!ghost.length) ghost = snare;
+  if (!quiet.length) quiet = all;
+  return roleCache = { data: breakData, kick, snare, ghost, quiet, strong: new Set([...kick, ...snare]) };
+}
+function makeChop() {
+  const R = sliceRoles(), a = chop.wild, names = Object.keys(CHOP_STYLES);
+  // tame: the classic patterns, one style for both bars; wild: anything, often switching halfway
+  const s1 = Math.random() < a + .25 ? pick(names) : pick(['Amen', 'Two-step', 'Think']);
+  const s2 = Math.random() < 1 - a*.75 ? s1 : pick(names);
+  const tpl = CHOP_STYLES[s1] + CHOP_STYLES[s2];
+  const out = [];
+  let prev = -1;
+  for (let i = 0; i < N; i++) {
+    const r = tpl[i];
+    let x;
+    // the lower the wildness, the more it reaches for the main hits and lets the break play through
+    const few = l => Math.random() < a ? pick(l) : pick(l.slice(0, 2));
+    if (r === 'K') x = i % 16 === 0 && Math.random() < 1 - a*.5 ? R.kick[0] : few(R.kick);
+    else if (r === 'S') x = few(R.snare);
+    else if (r === 'g') x = few(R.ghost);
+    else if (r === 'h' && Math.random() < .3 + a*.7) x = pick(R.quiet);
+    else {
+      x = prev < 0 ? i : (prev + 1) % N;
+      if (R.strong.has(x)) x = Math.random() < a ? pick(R.quiet) : R.strong.has(i) ? pick(R.quiet) : i;
+    }
+    out.push({ ...cleanCell(i), src: x }); prev = x;
+  }
+  // flavour, more of it with more Chaos
+  out.forEach((c, i) => {
+    if ((tpl[i] === '.' || tpl[i] === 'h') && Math.random() < a*a*.18) c.stut = 2;
+    if (tpl[i + 1] === 'S' && Math.random() < a*a*.25) c.rev = true;
+  });
+  // a fill to end the phrase
+  let fill = '';
+  if (Math.random() < a*.9) {
+    fill = pick(['roll', 'roll', 'reverse', 'tape stop', 'stutter']);
+    if (fill === 'roll') {
+      const x = pick(R.snare), len = pick([2, 3, 4]);
+      for (let k = 0; k < len; k++) out[N - len + k] = { ...cleanCell(N - len + k), src: x, stut: k === len - 1 ? 4 : k >= len - 2 ? 3 : 2, pitch: Math.round(k*(1 + a*2)) };
+    } else if (fill === 'reverse') {
+      const x = pick(R.snare);
+      for (const i of [N - 2, N - 1]) out[i] = { ...cleanCell(i), src: x, rev: true };
+    } else if (fill === 'tape stop') {
+      const len = 3 + Math.round(a*3);
+      for (let k = 0; k < len; k++) out[N - len + k].pitch = -Math.round((k + 1)*12/len);
+    } else {
+      const x = pick(R.kick);
+      for (let k = 0; k < 4; k++) out[N - 4 + k] = { ...cleanCell(N - 4 + k), src: x, stut: k < 2 ? 2 : 4 };
+    }
+  }
+  const nums = l => l.slice(0, 3).map(x => two(x + 1)).join(' ');
+  $('chopInfo').textContent = `${s1 === s2 ? s1 : s1 + ' → ' + s2}${fill ? ' + ' + fill : ''} · kicks ${nums(R.kick)} · snares ${nums(R.snare)}`;
+  return out;
+}
+function paintChop() {
+  $('chopWild').value = chop.wild; $('chopWildOut').textContent = Math.round(chop.wild*100) + '%';
+  $('chop').checked = chop.on; $('chopLbl').classList.toggle('on', chop.on);
+  $('chopEvery').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.n === chop.every));
+}
+[1, 2, 4].forEach(n => {
+  const b = document.createElement('button'); b.textContent = n + (n > 1 ? ' loops' : ' loop'); b.dataset.n = n;
+  b.onclick = () => { chop.every = n; paintChop(); };
+  $('chopEvery').appendChild(b);
+});
+$('chop').addEventListener('change', e => {
+  chop.on = e.target.checked; paintChop();
+  if (chop.on) commit(() => { seq = makeChop(); });  // undo goes back to your own order
+  else $('chopInfo').textContent = '';
+});
+$('chopWild').addEventListener('input', e => { chop.wild = +e.target.value; paintChop(); });
+$('chopNow').onclick = () => commit(() => { seq = makeChop(); });
+paintChop();
 
 $('evolve').addEventListener('change', e => {
   evolveOn = e.target.checked;
@@ -1998,6 +2134,7 @@ function snapshot() {
     bass: { ...bass }, riff: riff.join(''),
     lead: without(lead, 'hold', 'latch'),
     robot: { pace: robot.pace, parallel: robot.parallel },
+    chop: { ...chop },
     source: { ...src },
   };
 }
@@ -2049,6 +2186,10 @@ function restore(s) {
   if (s.robot?.pace in ROBOT_PATS) robot.pace = s.robot.pace;
   if (typeof s.robot?.parallel === 'boolean') robot.parallel = s.robot.parallel;
   paintRobot();
+  if (typeof s.chop?.on === 'boolean') chop.on = s.chop.on;
+  if ([1, 2, 4].includes(s.chop?.every)) chop.every = s.chop.every;
+  if (Number.isFinite(s.chop?.wild)) chop.wild = Math.max(0, Math.min(1, s.chop.wild));
+  paintChop();
   return true;
 }
 
