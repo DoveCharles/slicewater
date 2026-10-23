@@ -2604,47 +2604,70 @@ addEventListener('pagehide', autosave);
   const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const sc = $('stars'), sg = sc.getContext('2d'), tc = $('scroller'), tg = tc.getContext('2d');
   const MSG = '    ...  SLICEWATER v1.0a  ::  created by [ DOVE CHARLES ]  ::  ZzFX by [ FRANK FORCE ]  ::  hold SHIFT for the lead  ::  robot chords will wander for you  ::  evolve the break  ::  greetz to every junglist, every 174 head and everyone still chopping amens at 3am  ::  respect due  ...';
-  // Each model is { v: [[x,y,z]...], e: [[a,b]...] }, roughly unit radius.
-  const edgesByLength = v => {
-    let min = Infinity; const e = [];
-    for (let i = 0; i < v.length; i++) for (let j = i + 1; j < v.length; j++) min = Math.min(min, Math.hypot(...v[i].map((c, k) => c - v[j][k])));
-    for (let i = 0; i < v.length; i++) for (let j = i + 1; j < v.length; j++) if (Math.hypot(...v[i].map((c, k) => c - v[j][k])) < min*1.01) e.push([i, j]);
-    return { v, e };
-  };
-  const PHI = (1 + Math.sqrt(5))/2;
-  const grid = (nu, nv, f, wrapV) => {
-    const v = [], e = [];
+  // Each model is { v: [[x,y,z]...], e: [[a,b]...] } scaled to unit radius; every spawn builds a fresh one from random parameters.
+  const R = (a, b) => a + Math.random()*(b - a), RI = (a, b) => Math.floor(R(a, b + 1)), TAU = Math.PI*2;
+  const sub = (a, b) => a.map((c, k) => c - b[k]), cross = (a, b) => [a[1]*b[2] - a[2]*b[1], a[2]*b[0] - a[0]*b[2], a[0]*b[1] - a[1]*b[0]];
+  const norm = a => { const l = Math.hypot(...a) || 1; return a.map(c => c/l); };
+  const unit = m => { const r = Math.max(...m.v.map(p => Math.hypot(...p))) || 1; m.v = m.v.map(p => p.map(c => c/r)); return m; };
+  // nu × nv lattice of f(u, v), u and v running 0..1; wrapU/wrapV join the last row/column back to the first.
+  const grid = (nu, nv, f, wrapU, wrapV) => {
+    const v = [], e = [], cu = wrapU ? nu : nu - 1, cv = wrapV ? nv : nv - 1;
     for (let i = 0; i < nu; i++) for (let j = 0; j < nv; j++) {
-      v.push(f(i/nu*Math.PI*2, wrapV ? j/nv*Math.PI*2 : j/(nv - 1)));
+      v.push(f(i/cu, j/cv));
       const k = i*nv + j;
-      e.push([k, ((i + 1) % nu)*nv + j]);
+      if (wrapU || i < nu - 1) e.push([k, ((i + 1) % nu)*nv + j]);
       if (wrapV || j < nv - 1) e.push([k, i*nv + (j + 1) % nv]);
     }
-    return { v, e };
+    return unit({ v, e });
   };
+  // A tube of `sides` around the curve c(t); r is a number or r(t).
+  const tube = (c, n, sides, r, closed = true) => grid(n, sides, (t, w) => {
+    const p = c(t), T = norm(sub(c(t + .001), p)), N = norm(cross(T, [.31, .83, .46])), B = cross(T, N), a = w*TAU, rr = typeof r === 'function' ? r(t) : r;
+    return p.map((x, k) => x + (N[k]*Math.cos(a) + B[k]*Math.sin(a))*rr);
+  }, closed, true);
+  const superf = (a, m, n1, n2, n3) => Math.min(4, Math.pow(Math.abs(Math.cos(m*a/4))**n2 + Math.abs(Math.sin(m*a/4))**n3, -1/n1));
   const MODELS = [
-    edgesByLength([-1, 1].flatMap(x => [-1, 1].flatMap(y => [-1, 1].map(z => [x*.7, y*.7, z*.7])))),
-    edgesByLength([[1,1,1], [1,-1,-1], [-1,1,-1], [-1,-1,1]].map(p => p.map(c => c*.7))),
-    edgesByLength([[1,0,0], [-1,0,0], [0,1,0], [0,-1,0], [0,0,1], [0,0,-1]]),
-    edgesByLength([-1, 1].flatMap(a => [-1, 1].flatMap(b => [[0, a, b*PHI], [a, b*PHI, 0], [b*PHI, 0, a]])).map(p => p.map(c => c/1.9))),
-    edgesByLength([...[-1, 1].flatMap(x => [-1, 1].flatMap(y => [-1, 1].map(z => [x, y, z]))), ...[-1, 1].flatMap(a => [-1, 1].flatMap(b => [[0, a/PHI, b*PHI], [a/PHI, b*PHI, 0], [b*PHI, 0, a/PHI]]))].map(p => p.map(c => c/1.75))),
-    grid(24, 10, (u, w) => [Math.cos(u)*(.7 + .3*Math.cos(w)), .3*Math.sin(w), Math.sin(u)*(.7 + .3*Math.cos(w))], true),
-    grid(16, 9, (u, t) => { const p = t*Math.PI; return [Math.sin(p)*Math.cos(u), Math.cos(p), Math.sin(p)*Math.sin(u)]; }, false),
-    grid(12, 2, (u, t) => [Math.cos(u)*.6, t*2 - 1, Math.sin(u)*.6], false),
-    grid(16, 2, (u, t) => [Math.cos(u)*(1 - t)*.8, t*2 - 1, Math.sin(u)*(1 - t)*.8], false),
+    () => { const p = RI(2, 5), q = p + RI(1, 4); // torus knot
+      return tube(t => { const a = t*TAU, r = 2 + Math.cos(q*a); return [r*Math.cos(p*a), r*Math.sin(p*a), -Math.sin(q*a)]; }, 180, 6, R(.25, .45)); },
+    () => { const a = RI(1, 4), b = RI(2, 5), c = RI(1, 6), ph = R(0, 6); // lissajous tube
+      return tube(t => [Math.sin(a*t*TAU + ph), Math.sin(b*t*TAU), Math.sin(c*t*TAU + ph*.7)], 180, 5, R(.06, .12)); },
+    () => { const k = RI(1, 5); // twisted band, Möbius when k is odd
+      return grid(72, 5, (u, v) => { const a = u*TAU, w = (v - .5)*.9, b = a*k/2, r = 1 + w*Math.cos(b); return [r*Math.cos(a), r*Math.sin(a), w*Math.sin(b)]; }, false, false); },
+    () => { const turns = R(3, 5), b = R(.07, .11), h = R(1.5, 3); // seashell
+      return grid(110, 12, (u, v) => { const t = u*turns*TAU, e = Math.exp(b*t), s = v*TAU, r = e*(1.15 + Math.cos(s)); return [r*Math.cos(t), r*Math.sin(t), e*(Math.sin(s) - h)]; }, false, true); },
+    () => grid(56, 14, (u, v) => { const a = u*TAU, b = v*TAU, x = 2 + Math.cos(a/2)*Math.sin(b) - Math.sin(a/2)*Math.sin(2*b); // klein bottle
+      return [x*Math.cos(a), x*Math.sin(a), Math.sin(a/2)*Math.sin(b) + Math.cos(a/2)*Math.sin(2*b)]; }, false, true),
+    () => { const A = [RI(2, 9), R(.3, 2), R(.3, 2), R(.3, 2)], Bp = [RI(2, 9), R(.3, 2), R(.3, 2), R(.3, 2)]; // supershape
+      return grid(56, 26, (u, v) => { const th = u*TAU - Math.PI, ph = (v - .5)*Math.PI, r1 = superf(th, ...A), r2 = superf(ph, ...Bp);
+        return [r1*Math.cos(th)*r2*Math.cos(ph), r1*Math.sin(th)*r2*Math.cos(ph), r2*Math.sin(ph)]; }, true, false); },
+    () => { const turns = R(1.5, 3), n = 90, v = [], e = []; // double helix
+      for (let i = 0; i < n; i++) {
+        const t = i/(n - 1), a = t*turns*TAU, y = (t - .5)*5;
+        v.push([Math.cos(a), y, Math.sin(a)], [-Math.cos(a), y, -Math.sin(a)]);
+        if (i) e.push([2*i - 2, 2*i], [2*i - 1, 2*i + 1]);
+        if (i % 3 === 0) e.push([2*i, 2*i + 1]);
+      }
+      return unit({ v, e }); },
+    () => { const k = R(2, 5), ph = R(0, 6); // ripple
+      return grid(30, 30, (u, v) => { const x = u*2 - 1, z = v*2 - 1, r = Math.hypot(x, z); return [x, Math.sin(r*k*Math.PI + ph)*.22*(1.4 - r*.6), z]; }, false, false); },
+    () => { const turns = R(2, 4), spin = R(.8, 2); // spiral horn
+      return tube(t => { const a = t*turns*TAU, r = .3 + t*2; return [r*Math.cos(a), (t - .5)*spin*3, r*Math.sin(a)]; }, 140, 8, t => .05 + t*.7, false); },
+    () => { const m = RI(3, 8), amp = R(.15, .4); // blob
+      return grid(44, 22, (u, v) => { const th = u*TAU, ph = v*Math.PI, r = 1 + amp*Math.sin(m*th)*Math.sin(m*ph*.5 + 1);
+        return [r*Math.sin(ph)*Math.cos(th), r*Math.cos(ph), r*Math.sin(ph)*Math.sin(th)]; }, true, false); },
   ];
   let objs = [], off = 0, last = performance.now(), d = 1;
   const spawn = (W, H) => {
-    const m = MODELS[Math.random()*MODELS.length | 0], z = .35 + Math.random()*.65;
-    return { m, x: Math.random()*W, y: Math.random()*H, s: Math.min(W, H)*(.06 + Math.random()*.12)*(1.4 - z*.6), z,
-      a: [Math.random()*6, Math.random()*6, Math.random()*6], w: [Math.random() - .5, Math.random() - .5, Math.random() - .5].map(c => c*1.6),
-      dx: (Math.random() - .5)*12*d, dy: (Math.random() - .5)*12*d };
+    const m = MODELS[Math.random()*MODELS.length | 0](), z = R(.35, 1);
+    return { m, x: Math.random()*W, y: Math.random()*H, s: Math.min(W, H)*R(.28, .6)*(1.3 - z*.4), z,
+      a: [R(0, 6), R(0, 6), R(0, 6)], w: [R(-.5, .5), R(-.5, .5), R(-.5, .5)],
+      dx: R(-6, 6)*d, dy: R(-6, 6)*d };
   };
   function size() {
     d = devicePixelRatio || 1;
     sc.width = innerWidth*d | 0; sc.height = innerHeight*d | 0;
     const r = tc.getBoundingClientRect(); tc.width = Math.max(1, r.width*d | 0); tc.height = Math.max(1, r.height*d | 0);
-    const n = Math.max(6, Math.min(18, Math.round(sc.width*sc.height/(d*d)/90000)));
+    const n = Math.max(4, Math.min(8, Math.round(sc.width*sc.height/(d*d)/220000)));
     objs = Array.from({ length: n }, () => spawn(sc.width, sc.height));
   }
   function tick(now) {
@@ -2666,7 +2689,7 @@ addEventListener('pagehide', autosave);
         const p = 3/(3 + z);
         return [o.x + x*o.s*p, o.y + y*o.s*p];
       });
-      sg.strokeStyle = `rgba(255,255,255,${.1 + o.z*.25})`; sg.lineWidth = d*(.6 + o.z*.6);
+      sg.strokeStyle = `rgba(255,255,255,${.07 + o.z*.2})`; sg.lineWidth = d*(.5 + o.z*.6);
       sg.beginPath();
       for (const [a, b] of o.m.e) { sg.moveTo(pts[a][0], pts[a][1]); sg.lineTo(pts[b][0], pts[b][1]); }
       sg.stroke();
