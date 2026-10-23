@@ -654,6 +654,8 @@ const cleanCell = i => ({ src: i, rev: false, stut: 1, pitch: 0, mute: false });
 let seq = Array.from({ length: N }, (_, i) => cleanCell(i));
 let sel = 0;
 const history = [];
+// a typed chain longer than 2 bars: 2-bar pages played in turn, seq is the page on screen
+let song = null; // { pages: [cells[]], page, len } — len is how many steps were typed
 const mix = { bpm: 174, swing: .1, hipass: 0, filter: 1, space: .24, drive: .25, ghosts: .35, humanize: .4, volume: .8 };
 
 function loadPreset(name) {
@@ -901,8 +903,14 @@ function scheduler() {
     uiQueue.push([t, step]);
     nextTime += sd;
     step = (step + 1) % N;
-    if (step === 0) onLoop();
+    if (step === 0) { turnPage(); onLoop(); }
   }
+}
+function turnPage(to) {
+  if (!song) return;
+  song.page = to ?? (song.page + 1) % song.pages.length;
+  seq = song.pages[song.page]; if (evolveOn) evolveHome = clone(seq);
+  drawSeq(); drawInspector(); drawWave();
 }
 function onLoop() {
   loops++;
@@ -920,6 +928,7 @@ function start() {
   ensureAudio();
   if (!fwdBuf) makeBuffers();
   rewindBars();
+  turnPage(0);
   if (chop.on) { seq = makeChop(); if (evolveOn) evolveHome = clone(seq); drawSeq(); drawInspector(); }
   playing = true; step = 0; loops = 0; nextTime = ctx.currentTime + .06; lastRiffRate = 0;
   if (riffActive()) subStop();
@@ -1020,9 +1029,12 @@ function mutateAll(s, a) {
   const n = 1 + Math.round(a*2.5);
   for (let i = 0; i < n; i++) pick(pool).fn(s, a);
 }
+const cloneSong = sg => sg && { ...sg, pages: sg.pages.map(clone) };
+function pushHistory() { history.push({ seq: clone(seq), song: cloneSong(song) }); if (history.length > 60) history.shift(); }
 function commit(fn) {
-  history.push(clone(seq)); if (history.length > 60) history.shift();
+  pushHistory();
   fn();
+  if (song) song.pages[song.page] = seq;
   if (evolveOn) evolveHome = clone(seq);
   drawSeq(); drawInspector();
 }
@@ -1089,22 +1101,24 @@ function drawSeq() {
   if (document.activeElement !== codeEl) { codeEl.value = seqCode(); codeEl.classList.remove('bad'); }
 }
 // typed beats: "1 1 2.3 2.3 8". A number plays that whole beat (4 slices); "beat.slice" plays one slice
-// of it for a single step; "." is a silent beat. A short list repeats to fill all N steps.
+// of it for a single step; "." is a silent beat. A short list repeats to fill all N steps; a longer one
+// becomes a chain of 2-bar pages (its last page filled out by repeating from the start).
 // Beats count through the whole sample: 1–8 are bars 1–2, 9–16 bars 3–4, and so on.
 const codeEl = $('sliceCode');
 // where a step's slice sits in the whole sample, counting every pair of bars
 const absSlice = c => (c.pair != null && c.pair < pairCount() ? c.pair : loopPair())*N + c.src;
 // the box mirrors the sequence when it can be written this way; otherwise it stays blank
 function seqCode() {
+  const all = song ? song.pages.flat().slice(0, song.len) : seq, L = all.length;
   const out = [], plain = c => !c.rev && c.stut <= 1 && !c.pitch;
-  for (let i = 0; i < N;) {
-    const cells = seq.slice(i, i + 4);
-    if (cells.every(plain) && cells.every(c => c.mute) && (cells.length === 4 || i + cells.length === N)) { out.push('.'); i += cells.length; continue; }
+  for (let i = 0; i < L;) {
+    const cells = all.slice(i, i + 4);
+    if (cells.every(plain) && cells.every(c => c.mute) && (cells.length === 4 || i + cells.length === L)) { out.push('.'); i += cells.length; continue; }
     if (cells.length === 4 && cells.every(plain)) {
       const first = absSlice(cells[0]);
       if (first % 4 === 0 && cells.every((c, k) => !c.mute && absSlice(c) === first + k)) { out.push(first/4 + 1); i += 4; continue; }
     }
-    const c = seq[i];
+    const c = all[i];
     if (c.mute || !plain(c)) return '';
     const a = absSlice(c);
     out.push(`${(a >> 2) + 1}.${a % 4 + 1}`); i++;
@@ -1132,11 +1146,14 @@ function applyCode() {
   const list = parseCode(codeEl.value);
   if (!list) { codeEl.classList.add('bad'); return; }
   codeEl.classList.remove('bad');
+  const pages = Math.ceil(list.length/N);
+  const cells = Array.from({ length: pages*N }, (_, i) => {
+    const v = list[i % list.length], c = cleanCell(i % N);
+    return v < 0 ? { ...c, mute: true } : { ...c, src: v % N, pair: v/N | 0 };
+  });
   commit(() => {
-    seq = Array.from({ length: N }, (_, i) => {
-      const v = list[i % list.length];
-      return v < 0 ? { ...cleanCell(i), mute: true } : { ...cleanCell(i), src: v % N, pair: v/N | 0 };
-    });
+    song = pages > 1 ? { pages: Array.from({ length: pages }, (_, p) => cells.slice(p*N, p*N + N)), page: 0, len: list.length } : null;
+    seq = song ? song.pages[0] : cells;
   });
   codeEl.value = seqCode();
 }
@@ -1244,7 +1261,7 @@ $('iRestore').onclick = () => editSel(c => { Object.assign(c, cleanCell(sel)); d
 stutSeg.onclick = e => { const b = e.target.closest('button'); if (b) editSel(c => c.stut = +b.dataset.n); };
 let pitchPushed = false;
 $('iPitch').addEventListener('input', e => {
-  if (!pitchPushed) { history.push(clone(seq)); pitchPushed = true; }
+  if (!pitchPushed) { pushHistory(); pitchPushed = true; }
   seq[sel] = { ...seq[sel], pitch: +e.target.value };
   if (evolveOn) evolveHome = clone(seq);
   drawSeq(); drawInspector();
@@ -1265,8 +1282,8 @@ OPS.forEach(o => {
 });
 $('chaos').addEventListener('input', e => $('chaosOut').textContent = Math.round(e.target.value*100) + '%');
 $('undo').onclick = undo;
-function undo() { if (!history.length) return; seq = history.pop(); if (evolveOn) evolveHome = clone(seq); drawSeq(); drawInspector(); drawWave(); }
-$('reset').onclick = () => commit(() => { seq = Array.from({ length: N }, (_, i) => cleanCell(i)); });
+function undo() { if (!history.length) return; ({ seq, song } = history.pop()); if (song) song.pages[song.page] = seq; if (evolveOn) evolveHome = clone(seq); drawSeq(); drawInspector(); drawWave(); }
+$('reset').onclick = () => commit(() => { song = null; seq = Array.from({ length: N }, (_, i) => cleanCell(i)); });
 
 /* ---------- Chop robot: hears which slices are kicks, snares and ghosts, then writes jungle chops ---------- */
 const chop = { on: false, every: 2, wild: .5 };
@@ -1469,12 +1486,12 @@ function rewindBars() {
 function setSource(kind) {
   if (kind === 'amen' && !samples.amen) {
     src.kind = 'amen'; paintSource('Loading amen…');
-    loadAmen().then(() => { if (src.kind === 'amen') { paintSource(); renderBreak(); } })
+    loadAmen().then(() => { if (src.kind === 'amen') { paintSource(); renderBreak(); drawSeq(); } })
       .catch(() => { if (src.kind === 'amen') { src.kind = 'synth'; paintSource('Could not load amen.wav. Open the page from a web server, not as a local file.'); renderBreak(); } });
     return;
   }
   if (kind === 'custom' && !samples.custom) kind = 'synth';
-  src.kind = kind; paintSource(); renderBreak();
+  src.kind = kind; paintSource(); renderBreak(); drawSeq();
 }
 $('srcChips').addEventListener('click', e => { const b = e.target.closest('.chip'); if (b) { src.pair = 0; src.auto = true; setSource(b.dataset.kind); } });
 $('srcLoad').onclick = () => $('srcFile').click();
@@ -2287,6 +2304,7 @@ function snapshot() {
     preset: isPreset(preset) ? preset : null, seed,
     pattern: Object.fromEntries(DRUMS.map(d => [d.id, pattern[d.id].join('')])),
     seq: seq.map(c => ({ ...c })),
+    song: cloneSong(song),
     kit: Object.fromEntries(DRUMS.map(d => [d.id, { ...d.p }])),
     mix: { ...mix }, master: { ...master_ },
     pad: without(pad, 'on', 'latch'),
@@ -2320,7 +2338,12 @@ function restore(s) {
   if (Number.isFinite(s.seed)) seed = s.seed;
   if (Array.isArray(s.seq) && s.seq.length === N) {
     const clamp = (v, lo, hi, dflt) => Number.isFinite(v) ? Math.max(lo, Math.min(hi, Math.round(v))) : dflt;
-    seq = s.seq.map((c, i) => ({ src: clamp(c?.src, 0, N - 1, i), rev: !!c?.rev, stut: clamp(c?.stut, 1, 8, 1), pitch: clamp(c?.pitch, -24, 24, 0), mute: !!c?.mute, ...(Number.isInteger(c?.pair) ? { pair: clamp(c.pair, 0, 15, 0) } : {}) }));
+    const cellsOf = list => list.map((c, i) => ({ src: clamp(c?.src, 0, N - 1, i), rev: !!c?.rev, stut: clamp(c?.stut, 1, 8, 1), pitch: clamp(c?.pitch, -24, 24, 0), mute: !!c?.mute, ...(Number.isInteger(c?.pair) ? { pair: clamp(c.pair, 0, 15, 0) } : {}) }));
+    seq = cellsOf(s.seq);
+    const sp = s.song?.pages;
+    song = Array.isArray(sp) && sp.length > 1 && sp.every(pg => Array.isArray(pg) && pg.length === N)
+      ? { pages: sp.map(cellsOf), page: 0, len: clamp(s.song.len, 1, sp.length*N, sp.length*N) } : null;
+    if (song) seq = song.pages[0];
   }
   drawSeq(); drawInspector();
   const sk = s.source?.kind;
