@@ -396,7 +396,7 @@ input[type=range]::-moz-range-thumb { width: 18px; height: 10px; border-radius: 
         <div id="lanes"></div>
         <div class="row"><div class="row-lbl">Break</div><div class="wave-wrap"><canvas id="wave" aria-label="Rendered break waveform. Click a slice to hear it or assign it to the selected step."></canvas></div></div>
         <div class="row seq"><div class="row-lbl">Slices</div><div class="cells" id="seq"></div></div>
-        <div class="row code-row"><label class="row-lbl" for="sliceCode">Code</label><input type="text" id="sliceCode" spellcheck="false" autocomplete="off" placeholder="1 1 2 8 14 15 …"></div>
+        <div class="row code-row"><label class="row-lbl" for="sliceCode">Code</label><input type="text" id="sliceCode" spellcheck="false" autocomplete="off" placeholder="beats: 1 1 2.3 2.3 8 …"></div>
       </div>
     </div>
   </section>
@@ -1081,18 +1081,38 @@ function drawSeq() {
   });
   if (document.activeElement !== codeEl) { codeEl.value = seqCode(); codeEl.classList.remove('bad'); }
 }
-// typed slices: "1 1 2 8 14 15", 1-based, "." for a rest; a short list repeats to fill all N steps
-const codeEl = $('sliceCode');
-const seqCode = () => seq.map(c => c.mute ? '.' : c.src + 1).join(' ');
+// typed beats: "1 1 2.3 2.3 8". A number plays that whole beat of the loop (4 slices); "beat.slice"
+// plays one slice of it for a single step; "." is a silent beat. A short list repeats to fill all N steps.
+const codeEl = $('sliceCode'), BEATS = N/4;
+// the box mirrors the sequence when it can be written this way; otherwise it stays blank
+function seqCode() {
+  const out = [], plain = c => !c.rev && c.stut <= 1 && !c.pitch;
+  for (let i = 0; i < N;) {
+    const cells = seq.slice(i, i + 4);
+    if (cells.length === 4 && cells.every(plain)) {
+      if (cells.every(c => c.mute)) { out.push('.'); i += 4; continue; }
+      const first = cells[0].src;
+      if (first % 4 === 0 && cells.every((c, k) => !c.mute && c.src === first + k)) { out.push(first/4 + 1); i += 4; continue; }
+    }
+    const c = seq[i];
+    if (c.mute || !plain(c)) return '';
+    out.push(`${(c.src >> 2) + 1}.${c.src % 4 + 1}`); i++;
+  }
+  return out.join(' ');
+}
+// one pass of the typed list as step values: a slice index, or -1 for a muted step
 function parseCode(text) {
   const toks = text.trim().split(/[\s,]+/).filter(Boolean);
   if (!toks.length) return null;
   const out = [];
   for (const t of toks) {
-    if (t === '.' || t === '-') { out.push(-1); continue; }
-    const n = +t;
-    if (!Number.isInteger(n) || n < 1 || n > N) return null;
-    out.push(n - 1);
+    if (t === '.' || t === '-') { out.push(-1, -1, -1, -1); continue; }
+    const m = /^(\d+)(?:\.(\d))?$/.exec(t);
+    if (!m) return null;
+    const beat = +m[1], sl = m[2] && +m[2];
+    if (beat < 1 || beat > BEATS || (m[2] && (sl < 1 || sl > 4))) return null;
+    const base = (beat - 1)*4;
+    if (m[2]) out.push(base + sl - 1); else out.push(base, base + 1, base + 2, base + 3);
   }
   return out;
 }
