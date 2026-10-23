@@ -654,8 +654,12 @@ const cleanCell = i => ({ src: i, rev: false, stut: 1, pitch: 0, mute: false });
 let seq = Array.from({ length: N }, (_, i) => cleanCell(i));
 let sel = 0;
 const history = [];
-// a typed chain longer than 2 bars: 2-bar pages played in turn, seq is the page on screen
-let song = null; // { pages: [cells[]], page, len } — len is how many steps were typed
+// a typed loop of any length that isn't 2 bars: it cycles at its own length while the rest keeps its
+// 2-bar loop. seq is a 2-bar window onto it, starting at step off of the loop, moved on every 2 bars.
+let song = null; // { cells, off }
+const songView = () => Array.from({ length: N }, (_, i) => song.cells[(song.off + i) % song.cells.length]);
+// a single step edited on screen goes back into the loop, and every step showing that cell follows
+function syncSong(i) { if (!song) return; song.cells[(song.off + i) % song.cells.length] = seq[i]; seq = songView(); }
 const mix = { bpm: 174, swing: .1, hipass: 0, filter: 1, space: .24, drive: .25, ghosts: .35, humanize: .4, volume: .8 };
 
 function loadPreset(name) {
@@ -908,8 +912,8 @@ function scheduler() {
 }
 function turnPage(to) {
   if (!song) return;
-  song.page = to ?? (song.page + 1) % song.pages.length;
-  seq = song.pages[song.page]; if (evolveOn) evolveHome = clone(seq);
+  song.off = to ?? (song.off + N) % song.cells.length;
+  seq = songView(); if (evolveOn) evolveHome = clone(seq);
   drawSeq(); drawInspector(); drawWave();
 }
 function onLoop() {
@@ -1029,12 +1033,14 @@ function mutateAll(s, a) {
   const n = 1 + Math.round(a*2.5);
   for (let i = 0; i < n; i++) pick(pool).fn(s, a);
 }
-const cloneSong = sg => sg && { ...sg, pages: sg.pages.map(clone) };
+const cloneSong = sg => sg && { ...sg, cells: clone(sg.cells) };
 function pushHistory() { history.push({ seq: clone(seq), song: cloneSong(song) }); if (history.length > 60) history.shift(); }
 function commit(fn) {
   pushHistory();
+  const before = seq, songBefore = song;
   fn();
-  if (song) song.pages[song.page] = seq;
+  // a step edit lands in the typed loop; a whole new sequence (chop, reset) replaces it
+  if (song && song === songBefore) { if (seq === before) syncSong(sel); else song = null; }
   if (evolveOn) evolveHome = clone(seq);
   drawSeq(); drawInspector();
 }
@@ -1101,15 +1107,14 @@ function drawSeq() {
   if (document.activeElement !== codeEl) { codeEl.value = seqCode(); codeEl.classList.remove('bad'); }
 }
 // typed beats: "1 1 2.3 2.3 8". A number plays that whole beat (4 slices); "beat.slice" plays one slice
-// of it for a single step; "." is a silent beat. A short list repeats to fill all N steps; a longer one
-// becomes a chain of 2-bar pages (its last page filled out by repeating from the start).
+// of it for a single step; "." is a silent beat. The list loops at its own length, however long.
 // Beats count through the whole sample: 1–8 are bars 1–2, 9–16 bars 3–4, and so on.
 const codeEl = $('sliceCode');
 // where a step's slice sits in the whole sample, counting every pair of bars
 const absSlice = c => (c.pair != null && c.pair < pairCount() ? c.pair : loopPair())*N + c.src;
 // the box mirrors the sequence when it can be written this way; otherwise it stays blank
 function seqCode() {
-  const all = song ? song.pages.flat().slice(0, song.len) : seq, L = all.length;
+  const all = song ? song.cells : seq, L = all.length;
   const out = [], plain = c => !c.rev && c.stut <= 1 && !c.pitch;
   for (let i = 0; i < L;) {
     const cells = all.slice(i, i + 4);
@@ -1146,14 +1151,13 @@ function applyCode() {
   const list = parseCode(codeEl.value);
   if (!list) { codeEl.classList.add('bad'); return; }
   codeEl.classList.remove('bad');
-  const pages = Math.ceil(list.length/N);
-  const cells = Array.from({ length: pages*N }, (_, i) => {
-    const v = list[i % list.length], c = cleanCell(i % N);
+  const cells = list.map((v, i) => {
+    const c = cleanCell(i % N);
     return v < 0 ? { ...c, mute: true } : { ...c, src: v % N, pair: v/N | 0 };
   });
   commit(() => {
-    song = pages > 1 ? { pages: Array.from({ length: pages }, (_, p) => cells.slice(p*N, p*N + N)), page: 0, len: list.length } : null;
-    seq = song ? song.pages[0] : cells;
+    song = cells.length === N ? null : { cells, off: 0 };
+    seq = song ? songView() : cells;
   });
   codeEl.value = seqCode();
 }
@@ -1263,6 +1267,7 @@ let pitchPushed = false;
 $('iPitch').addEventListener('input', e => {
   if (!pitchPushed) { pushHistory(); pitchPushed = true; }
   seq[sel] = { ...seq[sel], pitch: +e.target.value };
+  syncSong(sel);
   if (evolveOn) evolveHome = clone(seq);
   drawSeq(); drawInspector();
 });
@@ -1282,8 +1287,8 @@ OPS.forEach(o => {
 });
 $('chaos').addEventListener('input', e => $('chaosOut').textContent = Math.round(e.target.value*100) + '%');
 $('undo').onclick = undo;
-function undo() { if (!history.length) return; ({ seq, song } = history.pop()); if (song) song.pages[song.page] = seq; if (evolveOn) evolveHome = clone(seq); drawSeq(); drawInspector(); drawWave(); }
-$('reset').onclick = () => commit(() => { song = null; seq = Array.from({ length: N }, (_, i) => cleanCell(i)); });
+function undo() { if (!history.length) return; ({ seq, song } = history.pop()); if (song) seq = songView(); if (evolveOn) evolveHome = clone(seq); drawSeq(); drawInspector(); drawWave(); }
+$('reset').onclick = () => commit(() => { seq = Array.from({ length: N }, (_, i) => cleanCell(i)); });
 
 /* ---------- Chop robot: hears which slices are kicks, snares and ghosts, then writes jungle chops ---------- */
 const chop = { on: false, every: 2, wild: .5 };
@@ -2340,10 +2345,9 @@ function restore(s) {
     const clamp = (v, lo, hi, dflt) => Number.isFinite(v) ? Math.max(lo, Math.min(hi, Math.round(v))) : dflt;
     const cellsOf = list => list.map((c, i) => ({ src: clamp(c?.src, 0, N - 1, i), rev: !!c?.rev, stut: clamp(c?.stut, 1, 8, 1), pitch: clamp(c?.pitch, -24, 24, 0), mute: !!c?.mute, ...(Number.isInteger(c?.pair) ? { pair: clamp(c.pair, 0, 15, 0) } : {}) }));
     seq = cellsOf(s.seq);
-    const sp = s.song?.pages;
-    song = Array.isArray(sp) && sp.length > 1 && sp.every(pg => Array.isArray(pg) && pg.length === N)
-      ? { pages: sp.map(cellsOf), page: 0, len: clamp(s.song.len, 1, sp.length*N, sp.length*N) } : null;
-    if (song) seq = song.pages[0];
+    const sc = s.song?.cells;
+    song = Array.isArray(sc) && sc.length && sc.length <= 4096 ? { cells: cellsOf(sc), off: 0 } : null;
+    if (song) seq = songView();
   }
   drawSeq(); drawInspector();
   const sk = s.source?.kind;
