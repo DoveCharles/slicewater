@@ -404,7 +404,7 @@ input[type=range]::-moz-range-thumb { width: 18px; height: 10px; border-radius: 
         <div id="lanes"></div>
         <div class="row"><div class="row-lbl">Break</div><div class="wave-wrap"><canvas id="wave" aria-label="Rendered break waveform. Click a slice to hear it or assign it to the selected step."></canvas></div></div>
         <div class="row seq"><div class="row-lbl">Slices</div><div class="cells" id="seq"></div></div>
-        <div class="row code-row"><label class="row-lbl" for="sliceCode">Code</label><div class="code-field"><input type="text" id="sliceCode" spellcheck="false" autocomplete="off" placeholder="beats: 1 1 2.3 2.3 8 …"><button class="btn" id="codeBack" aria-label="Remove the last beat">⌫</button><button class="btn" id="codeClear">Clear</button></div></div>
+        <div class="row code-row"><label class="row-lbl" for="sliceCode">Code</label><div class="code-field"><input type="text" id="sliceCode" spellcheck="false" autocomplete="off" placeholder="beats: 1 1 2.3 . - 8 …"><button class="btn" id="codeBack" aria-label="Remove the last beat">⌫</button><button class="btn" id="codeClear">Clear</button></div></div>
         <div class="row"><div class="row-lbl">Loop</div><canvas id="codeStrip" aria-label="The typed loop: one block per beat or slice, at its real length, with the bar lines under it."></canvas></div>
         <div class="row"><div class="row-lbl">Beats</div><div class="beat-pal" id="beatPal" role="group" aria-label="Beats of the break. Click to add one to the loop, shift-click to add just the quarter you clicked."></div></div>
       </div>
@@ -1118,44 +1118,60 @@ function drawSeq() {
   if (document.activeElement !== codeEl && !codeFresh) { codeEl.value = seqCode(); codeEl.classList.remove('bad'); }
   drawStripBase();
 }
-// typed beats: "1 1 2.3 2.3 8". A number plays that whole beat (4 slices); "beat.slice" plays one slice
-// of it for a single step; "." is a silent beat. The list loops at its own length, however long.
+// typed beats: "1 1 2.3 . - 8". A number plays that whole beat (4 slices); "beat.slice" plays one slice
+// of it for a single step; "-" is a silent step and "." carries on from the step before. The list loops
+// at its own length, however long.
 // Beats count through the whole sample: 1–8 are bars 1–2, 9–16 bars 3–4, and so on.
 const codeEl = $('sliceCode');
 let codeFresh = false; // Clear was pressed: the box stays empty for a new loop until something is added
 // where a step's slice sits in the whole sample, counting every pair of bars
 const absSlice = c => (c.pair != null && c.pair < pairCount() ? c.pair : loopPair())*N + c.src;
+const plainCell = c => !c.rev && c.stut <= 1 && !c.pitch;
+// one token per step or whole beat: a beat number, "beat.slice", "-" for a silent step, or "." for a step
+// that carries on from the one before it (the next slice along, or more silence)
+function loopTokens(all) {
+  const out = [];
+  for (let i = 0; i < all.length;) {
+    const four = all.slice(i, i + 4), f = absSlice(all[i]);
+    if (four.length === 4 && four.every(plainCell) && f % 4 === 0 && four.every((c, k) => !c.mute && absSlice(c) === f + k)) { out.push({ i, n: 4, a: f, tok: String(f/4 + 1) }); i += 4; continue; }
+    const c = all[i], prev = all[(i + all.length - 1) % all.length];
+    if (!plainCell(c)) return null;
+    const cont = i > 0 && plainCell(prev) && (c.mute ? prev.mute : !prev.mute && f === absSlice(prev) + 1);
+    out.push(c.mute ? { i, n: 1, rest: true, cont, tok: cont ? '.' : '-' } : { i, n: 1, a: f, cont, tok: cont ? '.' : `${(f >> 2) + 1}.${f % 4 + 1}` });
+    i++;
+  }
+  return out;
+}
+// what was typed stays in the box as written, for as long as the loop still matches it
+let typed = null;
+const loopKey = () => loopCells().map(c => !plainCell(c) ? 'x' : c.mute ? '-' : absSlice(c)).join();
 // the box mirrors the sequence when it can be written this way; otherwise it stays blank
 function seqCode() {
-  const all = song ? song.cells : seq, L = all.length;
-  const out = [], plain = c => !c.rev && c.stut <= 1 && !c.pitch;
-  for (let i = 0; i < L;) {
-    const cells = all.slice(i, i + 4);
-    if (cells.every(plain) && cells.every(c => c.mute) && (cells.length === 4 || i + cells.length === L)) { out.push('.'); i += cells.length; continue; }
-    if (cells.length === 4 && cells.every(plain)) {
-      const first = absSlice(cells[0]);
-      if (first % 4 === 0 && cells.every((c, k) => !c.mute && absSlice(c) === first + k)) { out.push(first/4 + 1); i += 4; continue; }
-    }
-    const c = all[i];
-    if (c.mute || !plain(c)) return '';
-    const a = absSlice(c);
-    out.push(`${(a >> 2) + 1}.${a % 4 + 1}`); i++;
-  }
-  return out.join(' ');
+  if (typed && typed.key === loopKey()) return typed.text;
+  const toks = loopTokens(loopCells());
+  return toks ? toks.map(t => t.tok).join(' ') : '';
 }
 // one pass of the typed list as step values: a slice index, or -1 for a muted step
 function parseCode(text) {
   const toks = text.trim().split(/[\s,]+/).filter(Boolean);
   if (!toks.length) return null;
-  const out = [];
+  const out = [], total = pairCount()*N;
   for (const t of toks) {
-    if (t === '.' || t === '-') { out.push(-1, -1, -1, -1); continue; }
+    if (t === '-') { out.push(-1); continue; }
+    if (t === '.') { out.push(null); continue; }
     const m = /^(\d+)(?:\.(\d))?$/.exec(t);
     if (!m) return null;
     const beat = +m[1], sl = m[2] && +m[2];
-    if (beat < 1 || beat > pairCount()*N/4 || (m[2] && (sl < 1 || sl > 4))) return null;
+    if (beat < 1 || beat > total/4 || (m[2] && (sl < 1 || sl > 4))) return null;
     const base = (beat - 1)*4;
     if (m[2]) out.push(base + sl - 1); else out.push(base, base + 1, base + 2, base + 3);
+  }
+  // a "." carries on from the step before; at the very start that's the end of the loop, as it comes round
+  const start = out.findIndex(v => v !== null);
+  if (start < 0) return null;
+  for (let k = 1; k <= out.length; k++) {
+    const i = (start + k) % out.length, prev = out[(i + out.length - 1) % out.length];
+    if (out[i] === null) out[i] = prev < 0 ? -1 : (prev + 1) % total;
   }
   return out;
 }
@@ -1173,6 +1189,7 @@ function applyCode() {
     song = cells.length === N ? null : { cells, off: 0 };
     seq = song ? songView() : cells;
   });
+  typed = { text: codeEl.value.trim().split(/[\s,]+/).join(' '), key: loopKey() };
   codeEl.value = seqCode();
 }
 codeEl.addEventListener('keydown', e => {
@@ -1214,20 +1231,7 @@ function drawMini(g, x, y, w, h, a, n, rev) {
 }
 const loopCells = () => song ? song.cells : seq;
 // the same tokens the code box shows, with where each sits in the loop
-function loopBlocks() {
-  const all = loopCells(), out = [], plain = c => !c.rev && c.stut <= 1 && !c.pitch;
-  for (let i = 0; i < all.length;) {
-    const four = all.slice(i, i + 4);
-    if (four.length === 4 && four.every(plain)) {
-      const f = absSlice(four[0]);
-      if (four.every(c => c.mute)) { out.push({ i, n: 4, rest: true }); i += 4; continue; }
-      if (f % 4 === 0 && four.every((c, k) => !c.mute && absSlice(c) === f + k)) { out.push({ i, n: 4, a: f, label: String(f/4 + 1) }); i += 4; continue; }
-    }
-    const c = all[i], a = absSlice(c);
-    out.push(c.mute ? { i, n: 1, rest: true } : { i, n: 1, a, rev: c.rev, label: `${(a >> 2) + 1}.${a % 4 + 1}` }); i++;
-  }
-  return out;
-}
+const loopBlocks = () => loopTokens(loopCells()) || loopCells().map((c, i) => c.mute ? { i, n: 1, rest: true } : { i, n: 1, a: absSlice(c), rev: c.rev, tok: '' });
 const stripEl = $('codeStrip'), stripBase = document.createElement('canvas');
 function drawStripBase() {
   const dpr = window.devicePixelRatio || 1, r = stripEl.getBoundingClientRect();
@@ -1239,13 +1243,14 @@ function drawStripBase() {
   for (let s = 0; s <= Math.max(len, N); s += 4) { g.fillStyle = s % 16 ? 'rgba(90,120,230,0.18)' : 'rgba(90,120,230,0.55)'; g.fillRect(Math.round(s*u), 0, 1, H); }
   g.font = `${10*dpr}px "Share Tech Mono", monospace`; g.textBaseline = 'top';
   for (const b of loopBlocks()) {
-    const x = Math.round(b.i*u) + 1, w = Math.max(1, Math.round((b.i + b.n)*u) - x - 1);
+    // a "." step joins on to the block before it
+    const x = Math.round(b.i*u) + (b.cont ? 0 : 1), w = Math.max(1, Math.round((b.i + b.n)*u) - x - 1);
     if (b.rest) { g.fillStyle = 'rgba(90,120,230,0.08)'; g.fillRect(x, 2*dpr, w, H - 4*dpr); continue; }
     const col = barColor(b.a);
     g.fillStyle = col + '22'; g.fillRect(x, 2*dpr, w, H - 4*dpr);
     g.fillStyle = col; g.fillRect(x, 2*dpr, w, 2*dpr);
     g.globalAlpha = .8; drawMini(g, x, 14*dpr, w, H - 18*dpr, b.a, b.n, b.rev); g.globalAlpha = 1;
-    if (g.measureText(b.label).width < w - 4) g.fillText(b.label, x + 3*dpr, 5*dpr);
+    if (!b.cont && g.measureText(b.tok).width < w - 4) g.fillText(b.tok, x + 3*dpr, 5*dpr);
   }
   g.fillStyle = 'rgba(255,255,255,0.5)'; g.fillRect(Math.round(len*u) - 1, 0, 2, H);
   drawStrip();
