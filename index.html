@@ -818,11 +818,14 @@ function applyMix() {
   shaper.curve = curve;
 }
 
-function playSlice(cell, t, dur, fwd = fwdBuf) {
+function playSlice(cell, t, dur, fwd) {
+  // a step can name another pair of bars (cell.pair, from the code box); it plays from that pair's audio
+  const side = fwd ? null : pairBuffers(cell.pair);
+  fwd = fwd || side?.fwd || fwdBuf;
   if (!fwd || cell.mute) return;
   const n = cell.stut || 1, sub = dur/n, rate = Math.pow(2, cell.pitch/12);
   const B = fwd.duration, rs = renderStep;
-  const buf = cell.rev ? revBuf : fwd;
+  const buf = cell.rev ? side?.rev || revBuf : fwd;
   const off = cell.rev ? Math.max(0, B - (cell.src + 1)*rs) : cell.src*rs;
   for (let k = 0; k < n; k++) {
     const st = t + k*sub;
@@ -840,28 +843,32 @@ function playSlice(cell, t, dur, fwd = fwdBuf) {
 }
 // one beat of the untouched break, at the current tempo: 1–8 are bars 1–2, Q–I are bars 3–4
 const BEAT_KEYS = '12345678qwertyui';
-let beatCache = null;
-function beatBuffer(pair) {
-  const smp = sampleSource(), pairs = smp ? Math.floor(smp.bars/2) : 1;
-  if (pair >= pairs) return null;
-  if (pair === (smp ? Math.min(src.pair, pairs - 1) : 0)) return fwdBuf;
-  // bars that aren't in the loop right now get rendered on the side
-  if (beatCache?.smp !== smp || beatCache.pair !== pair || beatCache.bpm !== renderBpm) {
-    const out = new Float32Array(breakData.length);
+function pairCount() { const smp = sampleSource(); return smp ? Math.max(1, Math.floor(smp.bars/2)) : 1; }
+function loopPair() { return sampleSource() ? Math.min(src.pair, pairCount() - 1) : 0; }
+// bars that aren't in the loop right now get rendered on the side; null means "use the loop"
+const pairCache = new Map();
+function pairBuffers(pair) {
+  if (pair == null || pair >= pairCount() || pair === loopPair() || !breakData) return null;
+  const smp = sampleSource();
+  let e = pairCache.get(pair);
+  if (!e || e.smp !== smp || e.bpm !== renderBpm) {
+    const out = new Float32Array(breakData.length), L = out.length;
     fitSample(smp, out, pair);
     const g = smp.peak > 0 ? .95/smp.peak : 1;
-    const buf = ctx.createBuffer(1, out.length, SR), ch = buf.getChannelData(0);
-    for (let i = 0; i < out.length; i++) ch[i] = out[i]*g;
-    beatCache = { smp, pair, bpm: renderBpm, buf };
+    const fwd = ctx.createBuffer(1, L, SR), rev = ctx.createBuffer(1, L, SR);
+    const f = fwd.getChannelData(0), r = rev.getChannelData(0);
+    for (let i = 0; i < L; i++) { f[i] = out[i]*g; r[L - 1 - i] = f[i]; }
+    e = { smp, bpm: renderBpm, fwd, rev };
+    pairCache.set(pair, e);
   }
-  return beatCache.buf;
+  return e;
 }
 function playBeat(b) {
   ensureAudio();
   if (!fwdBuf) makeBuffers();
-  const buf = beatBuffer(b >> 3); if (!buf) return;
+  if (b >> 3 >= pairCount()) return;
   const sd = stepDur(), t = ctx.currentTime + .01;
-  for (let i = 0; i < 4; i++) playSlice({ src: (b % 8)*4 + i, pitch: 0 }, t + i*sd, sd, buf);
+  for (let i = 0; i < 4; i++) playSlice({ src: (b % 8)*4 + i, pitch: 0, pair: b >> 3 }, t + i*sd, sd);
 }
 function audition(drum) {
   ensureAudio();
@@ -1081,22 +1088,26 @@ function drawSeq() {
   });
   if (document.activeElement !== codeEl) { codeEl.value = seqCode(); codeEl.classList.remove('bad'); }
 }
-// typed beats: "1 1 2.3 2.3 8". A number plays that whole beat of the loop (4 slices); "beat.slice"
-// plays one slice of it for a single step; "." is a silent beat. A short list repeats to fill all N steps.
-const codeEl = $('sliceCode'), BEATS = N/4;
+// typed beats: "1 1 2.3 2.3 8". A number plays that whole beat (4 slices); "beat.slice" plays one slice
+// of it for a single step; "." is a silent beat. A short list repeats to fill all N steps.
+// Beats count through the whole sample: 1–8 are bars 1–2, 9–16 bars 3–4, and so on.
+const codeEl = $('sliceCode');
+// where a step's slice sits in the whole sample, counting every pair of bars
+const absSlice = c => (c.pair != null && c.pair < pairCount() ? c.pair : loopPair())*N + c.src;
 // the box mirrors the sequence when it can be written this way; otherwise it stays blank
 function seqCode() {
   const out = [], plain = c => !c.rev && c.stut <= 1 && !c.pitch;
   for (let i = 0; i < N;) {
     const cells = seq.slice(i, i + 4);
+    if (cells.every(plain) && cells.every(c => c.mute) && (cells.length === 4 || i + cells.length === N)) { out.push('.'); i += cells.length; continue; }
     if (cells.length === 4 && cells.every(plain)) {
-      if (cells.every(c => c.mute)) { out.push('.'); i += 4; continue; }
-      const first = cells[0].src;
-      if (first % 4 === 0 && cells.every((c, k) => !c.mute && c.src === first + k)) { out.push(first/4 + 1); i += 4; continue; }
+      const first = absSlice(cells[0]);
+      if (first % 4 === 0 && cells.every((c, k) => !c.mute && absSlice(c) === first + k)) { out.push(first/4 + 1); i += 4; continue; }
     }
     const c = seq[i];
     if (c.mute || !plain(c)) return '';
-    out.push(`${(c.src >> 2) + 1}.${c.src % 4 + 1}`); i++;
+    const a = absSlice(c);
+    out.push(`${(a >> 2) + 1}.${a % 4 + 1}`); i++;
   }
   return out.join(' ');
 }
@@ -1110,7 +1121,7 @@ function parseCode(text) {
     const m = /^(\d+)(?:\.(\d))?$/.exec(t);
     if (!m) return null;
     const beat = +m[1], sl = m[2] && +m[2];
-    if (beat < 1 || beat > BEATS || (m[2] && (sl < 1 || sl > 4))) return null;
+    if (beat < 1 || beat > pairCount()*N/4 || (m[2] && (sl < 1 || sl > 4))) return null;
     const base = (beat - 1)*4;
     if (m[2]) out.push(base + sl - 1); else out.push(base, base + 1, base + 2, base + 3);
   }
@@ -1124,7 +1135,7 @@ function applyCode() {
   commit(() => {
     seq = Array.from({ length: N }, (_, i) => {
       const v = list[i % list.length];
-      return v < 0 ? { ...cleanCell(i), mute: true } : { ...cleanCell(i), src: v };
+      return v < 0 ? { ...cleanCell(i), mute: true } : { ...cleanCell(i), src: v % N, pair: v/N | 0 };
     });
   });
   codeEl.value = seqCode();
@@ -1204,7 +1215,7 @@ wave.addEventListener('click', e => {
   const s = Math.min(N - 1, Math.max(0, Math.floor((e.clientX - r.left)/r.width*N)));
   ensureAudio();
   if (!playing) playSlice({ src: s, rev: false, stut: 1, pitch: 0, mute: false }, ctx.currentTime + .01, stepDur()*1.5);
-  commit(() => { seq[sel] = { ...seq[sel], src: s, mute: false }; });
+  commit(() => { const { pair, ...c } = seq[sel]; seq[sel] = { ...c, src: s, mute: false }; });
   drawWave();
 });
 
@@ -1229,7 +1240,7 @@ $('iPrev').onclick = () => editSel(c => c.src = (c.src + N - 1) % N);
 $('iNext').onclick = () => editSel(c => c.src = (c.src + 1) % N);
 $('iRev').onclick = () => editSel(c => c.rev = !c.rev);
 $('iMute').onclick = () => editSel(c => c.mute = !c.mute);
-$('iRestore').onclick = () => editSel(c => Object.assign(c, cleanCell(sel)));
+$('iRestore').onclick = () => editSel(c => { Object.assign(c, cleanCell(sel)); delete c.pair; });
 stutSeg.onclick = e => { const b = e.target.closest('button'); if (b) editSel(c => c.stut = +b.dataset.n); };
 let pitchPushed = false;
 $('iPitch').addEventListener('input', e => {
@@ -2309,7 +2320,7 @@ function restore(s) {
   if (Number.isFinite(s.seed)) seed = s.seed;
   if (Array.isArray(s.seq) && s.seq.length === N) {
     const clamp = (v, lo, hi, dflt) => Number.isFinite(v) ? Math.max(lo, Math.min(hi, Math.round(v))) : dflt;
-    seq = s.seq.map((c, i) => ({ src: clamp(c?.src, 0, N - 1, i), rev: !!c?.rev, stut: clamp(c?.stut, 1, 8, 1), pitch: clamp(c?.pitch, -24, 24, 0), mute: !!c?.mute }));
+    seq = s.seq.map((c, i) => ({ src: clamp(c?.src, 0, N - 1, i), rev: !!c?.rev, stut: clamp(c?.stut, 1, 8, 1), pitch: clamp(c?.pitch, -24, 24, 0), mute: !!c?.mute, ...(Number.isInteger(c?.pair) ? { pair: clamp(c.pair, 0, 15, 0) } : {}) }));
   }
   drawSeq(); drawInspector();
   const sk = s.source?.kind;
