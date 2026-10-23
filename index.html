@@ -348,7 +348,7 @@ input[type=range]::-moz-range-thumb { width: 18px; height: 10px; border-radius: 
 .code-row input.bad { border-color: #ff6b6b; outline-color: #ff6b6b; }
 .code-field { display: flex; gap: 6px; min-width: 0; }
 .code-field input { flex: 1; }
-#codeStrip { width: 100%; height: 46px; display: block; background: #000208; border: 1px solid #2f3d8a; border-radius: 6px; }
+#codeStrip { width: 100%; height: 58px; display: block; background: #000208; border: 1px solid #2f3d8a; border-radius: 6px; }
 .beat-pal { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; }
 .beat-pal button { position: relative; height: 38px; padding: 0; border: 1px solid var(--line); border-top: 3px solid var(--c); border-radius: 4px; background: #000208; overflow: hidden; }
 .beat-pal button:hover { border-color: var(--c); }
@@ -1237,22 +1237,41 @@ function drawStripBase() {
   const dpr = window.devicePixelRatio || 1, r = stripEl.getBoundingClientRect();
   const W = stripEl.width = stripBase.width = Math.max(1, Math.round(r.width*dpr));
   const H = stripEl.height = stripBase.height = Math.max(1, Math.round(r.height*dpr));
-  const g = stripBase.getContext('2d'), len = loopCells().length, u = W/Math.max(len, N);
+  const g = stripBase.getContext('2d'), len = loopCells().length, span = Math.max(len, N), u = W/span;
+  const top = 12*dpr, end = Math.round(len*u), blocks = loopBlocks();
   g.clearRect(0, 0, W, H);
   // beat and bar lines run on past the loop so you can see where it lands against the 2-bar grid
-  for (let s = 0; s <= Math.max(len, N); s += 4) { g.fillStyle = s % 16 ? 'rgba(90,120,230,0.18)' : 'rgba(90,120,230,0.55)'; g.fillRect(Math.round(s*u), 0, 1, H); }
+  for (let s = 0; s <= span; s += 4) { g.fillStyle = s % 16 ? 'rgba(90,120,230,0.18)' : 'rgba(90,120,230,0.55)'; g.fillRect(Math.round(s*u), top, 1, H - top); }
   g.font = `${10*dpr}px "Share Tech Mono", monospace`; g.textBaseline = 'top';
-  for (const b of loopBlocks()) {
-    // a "." step joins on to the block before it
-    const x = Math.round(b.i*u) + (b.cont ? 0 : 1), w = Math.max(1, Math.round((b.i + b.n)*u) - x - 1);
-    if (b.rest) { g.fillStyle = 'rgba(90,120,230,0.08)'; g.fillRect(x, 2*dpr, w, H - 4*dpr); continue; }
-    const col = barColor(b.a);
-    g.fillStyle = col + '22'; g.fillRect(x, 2*dpr, w, H - 4*dpr);
-    g.fillStyle = col; g.fillRect(x, 2*dpr, w, 2*dpr);
-    g.globalAlpha = .8; drawMini(g, x, 14*dpr, w, H - 18*dpr, b.a, b.n, b.rev); g.globalAlpha = 1;
-    if (!b.cont && g.measureText(b.tok).width < w - 4) g.fillText(b.tok, x + 3*dpr, 5*dpr);
-  }
-  g.fillStyle = 'rgba(255,255,255,0.5)'; g.fillRect(Math.round(len*u) - 1, 0, 2, H);
+  const drawBlocks = (from, alpha) => {
+    for (const b of blocks) {
+      if (from + b.i >= span) break;
+      // a "." step joins on to the block before it
+      const x = Math.round((from + b.i)*u) + (b.cont ? 0 : 1), w = Math.max(1, Math.min(W, Math.round((from + b.i + b.n)*u)) - x - 1);
+      g.globalAlpha = alpha;
+      if (b.rest) { g.fillStyle = 'rgba(90,120,230,0.08)'; g.fillRect(x, top + 2*dpr, w, H - top - 4*dpr); continue; }
+      const col = barColor(b.a);
+      g.fillStyle = col + '22'; g.fillRect(x, top + 2*dpr, w, H - top - 4*dpr);
+      g.fillStyle = col; g.fillRect(x, top + 2*dpr, w, 2*dpr);
+      g.globalAlpha = alpha*.8; drawMini(g, x, top + 14*dpr, w, H - top - 18*dpr, b.a, b.n, b.rev); g.globalAlpha = alpha;
+      if (!b.cont && g.measureText(b.tok).width < w - 4) g.fillText(b.tok, x + 3*dpr, top + 5*dpr);
+    }
+    g.globalAlpha = 1;
+  };
+  drawBlocks(0, 1);
+  // past the end: faint repeats of the loop, to show how it comes round against the bars
+  for (let from = len; from < span; from += len) drawBlocks(from, .22);
+  if (end < W) { g.fillStyle = 'rgba(0,2,8,0.45)'; g.fillRect(end, top, W - end, H - top); }
+  // the loop itself: a bracket along the top from start to end, and a frame round it
+  g.fillStyle = '#ffffff'; g.strokeStyle = '#ffffff'; g.lineWidth = 1.5*dpr;
+  g.strokeRect(1, top, Math.max(2, end - 2), H - top - 1);
+  g.fillRect(0, 0, 3*dpr, H); g.fillRect(Math.max(0, end - 3*dpr), 0, 3*dpr, H);
+  g.fillRect(0, top/2 - dpr/2, end, dpr);
+  const label = `LOOP · ${len/4} beat${len === 4 ? '' : 's'}`;
+  g.textBaseline = 'middle'; const lw = g.measureText(label).width + 8*dpr, lx = Math.max(4*dpr, Math.min(end/2 - lw/2, end - lw - 6*dpr));
+  g.fillStyle = '#000208'; g.fillRect(lx, 0, lw, top);
+  g.fillStyle = '#ffffff'; g.fillText(label, lx + 4*dpr, top/2);
+  g.textBaseline = 'top';
   drawStrip();
 }
 function drawStrip() {
