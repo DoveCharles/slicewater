@@ -346,6 +346,14 @@ input[type=range]::-moz-range-thumb { width: 18px; height: 10px; border-radius: 
 .code-row input { min-width: 0; background: #02040e; color: var(--ink); border: 1px solid var(--line); padding: 7px 9px; font: 13px var(--f-mono); letter-spacing: .04em; }
 .code-row input:focus { outline: 1px solid var(--aqua); border-color: var(--aqua); }
 .code-row input.bad { border-color: #ff6b6b; outline-color: #ff6b6b; }
+.code-field { display: flex; gap: 6px; min-width: 0; }
+.code-field input { flex: 1; }
+#codeStrip { width: 100%; height: 46px; display: block; background: #000208; border: 1px solid #2f3d8a; border-radius: 6px; }
+.beat-pal { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; }
+.beat-pal button { position: relative; height: 38px; padding: 0; border: 1px solid var(--line); border-top: 3px solid var(--c); border-radius: 4px; background: #000208; overflow: hidden; }
+.beat-pal button:hover { border-color: var(--c); }
+.beat-pal canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.beat-pal span { position: absolute; left: 4px; top: 1px; font: 10px var(--f-mono); color: var(--c); text-shadow: 0 0 3px #000; }
 .drum:nth-child(5n+1) { --aqua: #7fd8ff; } .drum:nth-child(5n+2) { --aqua: #ffb547; } .drum:nth-child(5n+3) { --aqua: #b9a2ff; }
 .drum:nth-child(5n+4) { --aqua: #5ff2cf; } .drum:nth-child(5n) { --aqua: #c4ff4f; }
 /* hard corners everywhere */
@@ -396,7 +404,9 @@ input[type=range]::-moz-range-thumb { width: 18px; height: 10px; border-radius: 
         <div id="lanes"></div>
         <div class="row"><div class="row-lbl">Break</div><div class="wave-wrap"><canvas id="wave" aria-label="Rendered break waveform. Click a slice to hear it or assign it to the selected step."></canvas></div></div>
         <div class="row seq"><div class="row-lbl">Slices</div><div class="cells" id="seq"></div></div>
-        <div class="row code-row"><label class="row-lbl" for="sliceCode">Code</label><input type="text" id="sliceCode" spellcheck="false" autocomplete="off" placeholder="beats: 1 1 2.3 2.3 8 …"></div>
+        <div class="row code-row"><label class="row-lbl" for="sliceCode">Code</label><div class="code-field"><input type="text" id="sliceCode" spellcheck="false" autocomplete="off" placeholder="beats: 1 1 2.3 2.3 8 …"><button class="btn" id="codeBack" aria-label="Remove the last beat">⌫</button><button class="btn" id="codeClear">Clear</button></div></div>
+        <div class="row"><div class="row-lbl">Loop</div><canvas id="codeStrip" aria-label="The typed loop: one block per beat or slice, at its real length, with the bar lines under it."></canvas></div>
+        <div class="row"><div class="row-lbl">Beats</div><div class="beat-pal" id="beatPal" role="group" aria-label="Beats of the break. Click to add one to the loop, shift-click to add just the quarter you clicked."></div></div>
       </div>
     </div>
   </section>
@@ -686,6 +696,7 @@ function renderBreak() {
   if (ctx && leadAmp) applyLead();
   makeBuffers();
   drawWaveBase();
+  drawPalette();
 }
 // the synth drummer: pattern lanes + seeded ghosts played through the ZzFX kit
 function synthBreak(out, len, stepDur) {
@@ -940,7 +951,7 @@ function start() {
   playBtn.classList.add('on'); playBtn.setAttribute('aria-label', 'Stop');
 }
 function stop() {
-  playing = false; clearInterval(timer); uiQueue.length = 0; nowStep = -1;
+  playing = false; clearInterval(timer); uiQueue.length = 0; nowStep = -1; drawStrip();
   if (sounding.length) subTo(pad.root); else paintSub(pad.root);
   if (leadActive()) leadClockStart(); else if (mel.sounding) { leadNoteOff(ctx.currentTime); mel.sounding = false; paintLead(); }
   playBtn.classList.remove('on'); playBtn.setAttribute('aria-label', 'Play');
@@ -1104,12 +1115,14 @@ function drawSeq() {
     b.className = 'cell' + ((s >> 2) % 2 ? ' alt' : '') + (c.src !== s ? ' moved' : '') + (c.mute ? ' muted' : '') + (s === sel ? ' sel' : '') + (s === nowStep ? ' now' : '');
     b.setAttribute('aria-label', `Step ${s + 1} plays slice ${c.src + 1}${c.rev ? ', reversed' : ''}${c.stut > 1 ? ', stutter ' + c.stut : ''}${c.pitch ? ', pitch ' + c.pitch : ''}${c.mute ? ', muted' : ''}`);
   });
-  if (document.activeElement !== codeEl) { codeEl.value = seqCode(); codeEl.classList.remove('bad'); }
+  if (document.activeElement !== codeEl && !codeFresh) { codeEl.value = seqCode(); codeEl.classList.remove('bad'); }
+  drawStripBase();
 }
 // typed beats: "1 1 2.3 2.3 8". A number plays that whole beat (4 slices); "beat.slice" plays one slice
 // of it for a single step; "." is a silent beat. The list loops at its own length, however long.
 // Beats count through the whole sample: 1–8 are bars 1–2, 9–16 bars 3–4, and so on.
 const codeEl = $('sliceCode');
+let codeFresh = false; // Clear was pressed: the box stays empty for a new loop until something is added
 // where a step's slice sits in the whole sample, counting every pair of bars
 const absSlice = c => (c.pair != null && c.pair < pairCount() ? c.pair : loopPair())*N + c.src;
 // the box mirrors the sequence when it can be written this way; otherwise it stays blank
@@ -1147,7 +1160,8 @@ function parseCode(text) {
   return out;
 }
 function applyCode() {
-  if (codeEl.value === seqCode()) return;
+  if (!codeEl.value.trim() || codeEl.value === seqCode()) return;
+  codeFresh = false;
   const list = parseCode(codeEl.value);
   if (!list) { codeEl.classList.add('bad'); return; }
   codeEl.classList.remove('bad');
@@ -1164,11 +1178,127 @@ function applyCode() {
 codeEl.addEventListener('keydown', e => {
   e.stopPropagation();
   if (e.key === 'Enter') { e.preventDefault(); applyCode(); }
-  else if (e.key === 'Escape') { codeEl.value = seqCode(); codeEl.classList.remove('bad'); codeEl.blur(); }
+  else if (e.key === 'Escape') { codeFresh = false; codeEl.value = seqCode(); codeEl.classList.remove('bad'); codeEl.blur(); }
 });
 codeEl.addEventListener('keyup', e => e.stopPropagation());
 codeEl.addEventListener('input', () => codeEl.classList.toggle('bad', !!codeEl.value.trim() && !parseCode(codeEl.value)));
 codeEl.addEventListener('change', applyCode);
+
+/* the typed loop drawn out, and the beats of the break to build it from */
+const BAR_COLORS = ['#7fd8ff', '#ffb547', '#b9a2ff', '#5ff2cf'];
+const barColor = a => BAR_COLORS[(a >> 4) % 4];
+// the whole sample laid out a pair of bars at a time, scaled like the rendered break
+let pairWaves = { key: null, list: [] };
+function pairWave(p) {
+  if (!breakData) return null;
+  if (pairWaves.key !== breakData) pairWaves = { key: breakData, list: [] };
+  const smp = sampleSource();
+  if (!smp || p === loopPair()) return breakData;
+  if (!pairWaves.list[p]) {
+    const out = new Float32Array(breakData.length), g = smp.peak > 0 ? .95/smp.peak : 1;
+    fitSample(smp, out, p); for (let i = 0; i < out.length; i++) out[i] *= g;
+    pairWaves.list[p] = out;
+  }
+  return pairWaves.list[p];
+}
+// n slices of the sample from slice a, squeezed into a w × h box
+function drawMini(g, x, y, w, h, a, n, rev) {
+  const d = pairWave(a/N | 0); if (!d) return;
+  const L = d.length/N, s0 = (a % N)*L, span = n*L, mid = y + h/2;
+  for (let i = 0; i < w; i++) {
+    const k = rev ? w - 1 - i : i, lo = Math.floor(s0 + k*span/w), hi = Math.max(lo + 1, Math.floor(s0 + (k + 1)*span/w));
+    let mn = 0, mx = 0;
+    for (let j = lo; j < hi && j < d.length; j++) { const v = d[j]; if (v < mn) mn = v; if (v > mx) mx = v; }
+    g.fillRect(x + i, mid - mx*h/2, 1, Math.max(1, (mx - mn)*h/2));
+  }
+}
+const loopCells = () => song ? song.cells : seq;
+// the same tokens the code box shows, with where each sits in the loop
+function loopBlocks() {
+  const all = loopCells(), out = [], plain = c => !c.rev && c.stut <= 1 && !c.pitch;
+  for (let i = 0; i < all.length;) {
+    const four = all.slice(i, i + 4);
+    if (four.length === 4 && four.every(plain)) {
+      const f = absSlice(four[0]);
+      if (four.every(c => c.mute)) { out.push({ i, n: 4, rest: true }); i += 4; continue; }
+      if (f % 4 === 0 && four.every((c, k) => !c.mute && absSlice(c) === f + k)) { out.push({ i, n: 4, a: f, label: String(f/4 + 1) }); i += 4; continue; }
+    }
+    const c = all[i], a = absSlice(c);
+    out.push(c.mute ? { i, n: 1, rest: true } : { i, n: 1, a, rev: c.rev, label: `${(a >> 2) + 1}.${a % 4 + 1}` }); i++;
+  }
+  return out;
+}
+const stripEl = $('codeStrip'), stripBase = document.createElement('canvas');
+function drawStripBase() {
+  const dpr = window.devicePixelRatio || 1, r = stripEl.getBoundingClientRect();
+  const W = stripEl.width = stripBase.width = Math.max(1, Math.round(r.width*dpr));
+  const H = stripEl.height = stripBase.height = Math.max(1, Math.round(r.height*dpr));
+  const g = stripBase.getContext('2d'), len = loopCells().length, u = W/Math.max(len, N);
+  g.clearRect(0, 0, W, H);
+  // beat and bar lines run on past the loop so you can see where it lands against the 2-bar grid
+  for (let s = 0; s <= Math.max(len, N); s += 4) { g.fillStyle = s % 16 ? 'rgba(90,120,230,0.18)' : 'rgba(90,120,230,0.55)'; g.fillRect(Math.round(s*u), 0, 1, H); }
+  g.font = `${10*dpr}px "Share Tech Mono", monospace`; g.textBaseline = 'top';
+  for (const b of loopBlocks()) {
+    const x = Math.round(b.i*u) + 1, w = Math.max(1, Math.round((b.i + b.n)*u) - x - 1);
+    if (b.rest) { g.fillStyle = 'rgba(90,120,230,0.08)'; g.fillRect(x, 2*dpr, w, H - 4*dpr); continue; }
+    const col = barColor(b.a);
+    g.fillStyle = col + '22'; g.fillRect(x, 2*dpr, w, H - 4*dpr);
+    g.fillStyle = col; g.fillRect(x, 2*dpr, w, 2*dpr);
+    g.globalAlpha = .8; drawMini(g, x, 14*dpr, w, H - 18*dpr, b.a, b.n, b.rev); g.globalAlpha = 1;
+    if (g.measureText(b.label).width < w - 4) g.fillText(b.label, x + 3*dpr, 5*dpr);
+  }
+  g.fillStyle = 'rgba(255,255,255,0.5)'; g.fillRect(Math.round(len*u) - 1, 0, 2, H);
+  drawStrip();
+}
+function drawStrip() {
+  const g = stripEl.getContext('2d'), W = stripEl.width, H = stripEl.height;
+  g.clearRect(0, 0, W, H); g.drawImage(stripBase, 0, 0);
+  if (nowStep < 0) return;
+  const len = loopCells().length, u = W/Math.max(len, N), at = song ? (song.off + nowStep) % len : nowStep;
+  g.fillStyle = 'rgba(255,255,255,0.18)'; g.fillRect(at*u, 0, u, H);
+  g.fillStyle = '#fff'; g.fillRect(at*u, H - 3, u, 3);
+}
+new ResizeObserver(drawStripBase).observe(stripEl);
+
+const palEl = $('beatPal');
+function drawPalette() {
+  const beats = pairCount()*8;
+  if (palEl.children.length !== beats) {
+    palEl.innerHTML = '';
+    for (let b = 0; b < beats; b++) {
+      const btn = document.createElement('button');
+      btn.dataset.beat = b; btn.style.setProperty('--c', barColor(b*4));
+      btn.setAttribute('aria-label', `Beat ${b + 1}`);
+      btn.innerHTML = `<canvas></canvas><span>${b + 1}</span>`;
+      palEl.appendChild(btn);
+    }
+  }
+  const dpr = window.devicePixelRatio || 1;
+  for (const btn of palEl.children) {
+    const cv = btn.firstChild, r = btn.getBoundingClientRect(), b = +btn.dataset.beat;
+    cv.width = Math.max(1, Math.round(r.width*dpr)); cv.height = Math.max(1, Math.round(r.height*dpr));
+    const g = cv.getContext('2d'); g.fillStyle = barColor(b*4); g.globalAlpha = .55;
+    for (let k = 1; k < 4; k++) g.fillRect(Math.round(k*cv.width/4), 0, 1, cv.height*.25);
+    drawMini(g, 0, cv.height*.3, cv.width, cv.height*.65, b*4, 4);
+  }
+}
+new ResizeObserver(drawPalette).observe(palEl);
+// add a beat (or the quarter of it you shift-clicked) to the end of the loop
+palEl.addEventListener('click', e => {
+  const btn = e.target.closest('button'); if (!btn) return;
+  const b = +btn.dataset.beat, r = btn.getBoundingClientRect();
+  const q = Math.min(3, Math.max(0, Math.floor((e.clientX - r.left)/r.width*4)));
+  const tok = e.shiftKey ? `${b + 1}.${q + 1}` : String(b + 1);
+  codeEl.value = (codeEl.value.trim() + ' ' + tok).trim(); applyCode();
+  if (!playing) { if (e.shiftKey) { ensureAudio(); if (!fwdBuf) makeBuffers(); playSlice({ src: (b % 8)*4 + q, pitch: 0, pair: b >> 3 }, ctx.currentTime + .01, stepDur()); } else playBeat(b); }
+});
+$('codeBack').onclick = () => {
+  const toks = codeEl.value.trim().split(/[\s,]+/).filter(Boolean);
+  if (toks.length < 2) return;
+  codeEl.value = toks.slice(0, -1).join(' '); applyCode();
+};
+// empties the box: the loop keeps playing until the next beat you add starts a new one
+$('codeClear').onclick = () => { codeFresh = true; codeEl.value = ''; codeEl.classList.remove('bad'); codeEl.focus(); };
 seqEl.addEventListener('click', e => {
   const b = e.target.closest('.cell'); if (!b) return;
   select(+b.dataset.step);
@@ -2277,7 +2407,7 @@ function frame() {
   if (playing && ctx) {
     let changed = false;
     while (uiQueue.length && uiQueue[0][0] <= ctx.currentTime) { nowStep = uiQueue.shift()[1]; changed = true; }
-    if (changed) { paintNow(); drawWave(); }
+    if (changed) { paintNow(); drawWave(); drawStrip(); }
   }
   drawTrace();
   paintGR();
@@ -2445,38 +2575,77 @@ lastSaved = JSON.stringify(snapshot());
 setInterval(autosave, 3000);
 addEventListener('pagehide', autosave);
 
-/* ---------- Cyber-Y2K: code rain + pixel dust behind, NFO ticker in the header ---------- */
+/* ---------- Cyber-Y2K: spinning wireframe models behind, NFO ticker in the header ---------- */
 (() => {
   const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const sc = $('stars'), sg = sc.getContext('2d'), tc = $('scroller'), tg = tc.getContext('2d');
-  const CODE = ['zzfxG(...p)', 'for(i=0;i<len;i++)', 'ctx.decodeAudio', 'keygen.exe /s', 'slice[i]=b>>4', '0x174BPM', 'crc32 ok', 'patch host file', 'serial: SLW-0174-AMEN', 'ret 0', 'jmp loop', 'mov eax,break', 'xor eax,eax', 'push ebp', 'liquid.dll loaded', 'reese()', 'sub.freq=root', '[ cracked ]', 'access granted', 'evolve(32)'];
   const MSG = '    ...  SLICEWATER v1.0a  ::  created by [ DOVE CHARLES ]  ::  ZzFX by [ FRANK FORCE ]  ::  hold SHIFT for the lead  ::  robot chords will wander for you  ::  evolve the break  ::  greetz to every junglist, every 174 head and everyone still chopping amens at 3am  ::  respect due  ...';
-  const HUES = ['90,130,255', '127,216,255', '255,181,71', '125,255,138', '185,162,255', '95,242,207'];
-  let cols = [], dust = [], off = 0, last = performance.now(), d = 1, fs = 13;
+  // Each model is { v: [[x,y,z]...], e: [[a,b]...] }, roughly unit radius.
+  const edgesByLength = v => {
+    let min = Infinity; const e = [];
+    for (let i = 0; i < v.length; i++) for (let j = i + 1; j < v.length; j++) min = Math.min(min, Math.hypot(...v[i].map((c, k) => c - v[j][k])));
+    for (let i = 0; i < v.length; i++) for (let j = i + 1; j < v.length; j++) if (Math.hypot(...v[i].map((c, k) => c - v[j][k])) < min*1.01) e.push([i, j]);
+    return { v, e };
+  };
+  const PHI = (1 + Math.sqrt(5))/2;
+  const grid = (nu, nv, f, wrapV) => {
+    const v = [], e = [];
+    for (let i = 0; i < nu; i++) for (let j = 0; j < nv; j++) {
+      v.push(f(i/nu*Math.PI*2, wrapV ? j/nv*Math.PI*2 : j/(nv - 1)));
+      const k = i*nv + j;
+      e.push([k, ((i + 1) % nu)*nv + j]);
+      if (wrapV || j < nv - 1) e.push([k, i*nv + (j + 1) % nv]);
+    }
+    return { v, e };
+  };
+  const MODELS = [
+    edgesByLength([-1, 1].flatMap(x => [-1, 1].flatMap(y => [-1, 1].map(z => [x*.7, y*.7, z*.7])))),
+    edgesByLength([[1,1,1], [1,-1,-1], [-1,1,-1], [-1,-1,1]].map(p => p.map(c => c*.7))),
+    edgesByLength([[1,0,0], [-1,0,0], [0,1,0], [0,-1,0], [0,0,1], [0,0,-1]]),
+    edgesByLength([-1, 1].flatMap(a => [-1, 1].flatMap(b => [[0, a, b*PHI], [a, b*PHI, 0], [b*PHI, 0, a]])).map(p => p.map(c => c/1.9))),
+    edgesByLength([...[-1, 1].flatMap(x => [-1, 1].flatMap(y => [-1, 1].map(z => [x, y, z]))), ...[-1, 1].flatMap(a => [-1, 1].flatMap(b => [[0, a/PHI, b*PHI], [a/PHI, b*PHI, 0], [b*PHI, 0, a/PHI]]))].map(p => p.map(c => c/1.75))),
+    grid(24, 10, (u, w) => [Math.cos(u)*(.7 + .3*Math.cos(w)), .3*Math.sin(w), Math.sin(u)*(.7 + .3*Math.cos(w))], true),
+    grid(16, 9, (u, t) => { const p = t*Math.PI; return [Math.sin(p)*Math.cos(u), Math.cos(p), Math.sin(p)*Math.sin(u)]; }, false),
+    grid(12, 2, (u, t) => [Math.cos(u)*.6, t*2 - 1, Math.sin(u)*.6], false),
+    grid(16, 2, (u, t) => [Math.cos(u)*(1 - t)*.8, t*2 - 1, Math.sin(u)*(1 - t)*.8], false),
+  ];
+  let objs = [], off = 0, last = performance.now(), d = 1;
+  const spawn = (W, H) => {
+    const m = MODELS[Math.random()*MODELS.length | 0], z = .35 + Math.random()*.65;
+    return { m, x: Math.random()*W, y: Math.random()*H, s: Math.min(W, H)*(.06 + Math.random()*.12)*(1.4 - z*.6), z,
+      a: [Math.random()*6, Math.random()*6, Math.random()*6], w: [Math.random() - .5, Math.random() - .5, Math.random() - .5].map(c => c*1.6),
+      dx: (Math.random() - .5)*12*d, dy: (Math.random() - .5)*12*d };
+  };
   function size() {
-    d = devicePixelRatio || 1; fs = 13*d;
+    d = devicePixelRatio || 1;
     sc.width = innerWidth*d | 0; sc.height = innerHeight*d | 0;
     const r = tc.getBoundingClientRect(); tc.width = Math.max(1, r.width*d | 0); tc.height = Math.max(1, r.height*d | 0);
-    const n = Math.ceil(sc.width/(fs*9));
-    cols = Array.from({ length: n }, (_, i) => ({ x: i*fs*9 + Math.random()*fs*3, y: Math.random()*sc.height, v: .4 + Math.random(), t: CODE[Math.random()*CODE.length | 0], h: HUES[Math.random() < .55 ? 0 : Math.random()*HUES.length | 0] }));
-    dust = Array.from({ length: 70 }, () => ({ x: Math.random()*sc.width, y: Math.random()*sc.height*.6, s: (2 + Math.random()*5 | 0)*d*2, a: Math.random() }));
-    sg.fillStyle = '#02030a'; sg.fillRect(0, 0, sc.width, sc.height);
+    const n = Math.max(6, Math.min(18, Math.round(sc.width*sc.height/(d*d)/90000)));
+    objs = Array.from({ length: n }, () => spawn(sc.width, sc.height));
   }
   function tick(now) {
     const dt = Math.min(.05, (now - last)/1000); last = now;
-    const W = sc.width, H = sc.height, sp = playing ? 3 : 1;
-    sg.fillStyle = 'rgba(2,3,10,.14)'; sg.fillRect(0, 0, W, H);
-    sg.font = `${fs | 0}px "Share Tech Mono", monospace`;
-    for (const c of cols) {
-      c.y += c.v*sp*fs*dt*4;
-      if (c.y > H + fs*4) { c.y = -fs; c.t = CODE[Math.random()*CODE.length | 0]; c.v = .4 + Math.random(); }
-      sg.fillStyle = `rgba(${c.h},.28)`; sg.fillText(c.t, c.x, c.y);
-      sg.fillStyle = 'rgba(200,225,255,.5)'; sg.fillText(c.t[Math.random()*c.t.length | 0], c.x, c.y + fs*1.2);
-    }
-    for (const p of dust) {
-      p.a += (Math.random() - .5)*.2*sp; p.a = Math.max(0, Math.min(1, p.a));
-      if (Math.random() < .002*sp) { p.x = Math.random()*W; p.y = Math.random()*H*.6; }
-      sg.fillStyle = `rgba(60,80,255,${p.a*.35})`; sg.fillRect(p.x, p.y, p.s, p.s);
+    const W = sc.width, H = sc.height, sp = playing ? 2.5 : 1;
+    sg.fillStyle = '#02030a'; sg.fillRect(0, 0, W, H);
+    sg.lineJoin = 'round';
+    for (const o of objs) {
+      for (let k = 0; k < 3; k++) o.a[k] += o.w[k]*sp*dt;
+      o.x += o.dx*dt; o.y += o.dy*dt;
+      const pad = o.s*1.5;
+      if (o.x < -pad) o.x = W + pad; else if (o.x > W + pad) o.x = -pad;
+      if (o.y < -pad) o.y = H + pad; else if (o.y > H + pad) o.y = -pad;
+      const [ax, ay, az] = o.a, cx = Math.cos(ax), sx = Math.sin(ax), cy = Math.cos(ay), sy = Math.sin(ay), cz = Math.cos(az), sz = Math.sin(az);
+      const pts = o.m.v.map(([x, y, z]) => {
+        let t = y*cx - z*sx; z = y*sx + z*cx; y = t;
+        t = x*cy + z*sy; z = -x*sy + z*cy; x = t;
+        t = x*cz - y*sz; y = x*sz + y*cz; x = t;
+        const p = 3/(3 + z);
+        return [o.x + x*o.s*p, o.y + y*o.s*p];
+      });
+      sg.strokeStyle = `rgba(255,255,255,${.1 + o.z*.25})`; sg.lineWidth = d*(.6 + o.z*.6);
+      sg.beginPath();
+      for (const [a, b] of o.m.e) { sg.moveTo(pts[a][0], pts[a][1]); sg.lineTo(pts[b][0], pts[b][1]); }
+      sg.stroke();
     }
     const w = tc.width, h = tc.height, tf = h*.42;
     tg.clearRect(0, 0, w, h);
