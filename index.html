@@ -26,7 +26,7 @@
   --r: 6px;
 }
 * { box-sizing: border-box; }
-html, body { background: var(--bg); color: var(--ink); }
+html { background: var(--bg); } body { color: var(--ink); }
 body { font-family: var(--f-display); font-size: 14px; line-height: 1.45; padding-inline: 16px; padding-block: 20px 48px; }
 .app { max-width: 1120px; margin: 0 auto; display: grid; gap: 18px; }
 button { font: inherit; color: inherit; cursor: pointer; }
@@ -174,7 +174,7 @@ input[type=range] { width: 100%; accent-color: var(--aqua); margin: 0; height: 2
   --rim: inset 0 1px 0 rgba(200, 220, 255, .35), inset 0 -1px 0 rgba(0, 0, 0, .6);
   --phos: 0 0 4px color-mix(in srgb, var(--aqua) 55%, transparent);
 }
-html, body { background: var(--bg); }
+html { background: var(--bg); }
 body { font-family: var(--f-mono); font-size: 16px; line-height: 1.35; color: var(--ink); }
 #stars { position: fixed; inset: 0; width: 100%; height: 100%; z-index: -1; display: block; }
 button:focus-visible, input:focus-visible { outline: 1px dotted var(--lime); outline-offset: 2px; }
