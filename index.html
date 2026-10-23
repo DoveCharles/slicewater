@@ -348,6 +348,9 @@ input[type=range]::-moz-range-thumb { width: 18px; height: 10px; border-radius: 
 .save-field input[type="text"], .save-field select { min-width: 0; flex: 1 1 120px; background: #02040e; color: var(--ink); border: 1px solid var(--line); padding: 7px 9px; font: 13px var(--f-mono); }
 .save-field input[type="text"]:focus, .save-field select:focus { outline: 1px solid var(--aqua); border-color: var(--aqua); }
 #saveMsg { min-height: 1.2em; }
+.code-row input { min-width: 0; background: #02040e; color: var(--ink); border: 1px solid var(--line); padding: 7px 9px; font: 13px var(--f-mono); letter-spacing: .04em; }
+.code-row input:focus { outline: 1px solid var(--aqua); border-color: var(--aqua); }
+.code-row input.bad { border-color: #ff6b6b; outline-color: #ff6b6b; }
 .drum:nth-child(5n+1) { --aqua: #7fd8ff; } .drum:nth-child(5n+2) { --aqua: #ffb547; } .drum:nth-child(5n+3) { --aqua: #b9a2ff; }
 .drum:nth-child(5n+4) { --aqua: #5ff2cf; } .drum:nth-child(5n) { --aqua: #c4ff4f; }
 /* hard corners everywhere */
@@ -398,9 +401,10 @@ input[type=range]::-moz-range-thumb { width: 18px; height: 10px; border-radius: 
         <div id="lanes"></div>
         <div class="row"><div class="row-lbl">Break</div><div class="wave-wrap"><canvas id="wave" aria-label="Rendered break waveform. Click a slice to hear it or assign it to the selected step."></canvas></div></div>
         <div class="row seq"><div class="row-lbl">Slices</div><div class="cells" id="seq"></div></div>
+        <div class="row code-row"><label class="row-lbl" for="sliceCode">Code</label><input type="text" id="sliceCode" spellcheck="false" autocomplete="off" placeholder="1 1 2 8 14 15 …" aria-describedby="sliceCodeHelp"></div>
       </div>
     </div>
-    <p class="hint">Top lanes are the drummer: click to cycle hit → accent → ghost → off. The waveform is the rendered break. The bottom row is what actually plays: each step names the slice it triggers. Select a step, then click the waveform to give it a different slice. <kbd>Space</kbd> play, <kbd>1</kbd>–<kbd>5</kbd> audition drums, <kbd>←</kbd><kbd>→</kbd> select, <kbd>R</kbd> reverse, <kbd>S</kbd> stutter, <kbd>M</kbd> mute, <kbd>Z</kbd> undo.</p>
+    <p class="hint">Top lanes are the drummer: click to cycle hit → accent → ghost → off. The waveform is the rendered break. The bottom row is what actually plays: each step names the slice it triggers. Select a step, then click the waveform to give it a different slice. <span id="sliceCodeHelp">Or type slice numbers into Code and press <kbd>Enter</kbd>: <code>.</code> is a rest, and a short list repeats to fill the bar.</span> <kbd>Space</kbd> play, <kbd>1</kbd>–<kbd>8</kbd> play beats of bars 1–2, <kbd>Q</kbd>–<kbd>I</kbd> bars 3–4, <kbd>←</kbd><kbd>→</kbd> select, <kbd>V</kbd> reverse, <kbd>S</kbd> stutter, <kbd>M</kbd> mute, <kbd>Z</kbd> undo.</p>
   </section>
 
   <div class="split">
@@ -588,26 +592,26 @@ function zzCode(arr) {
 /* ---------- Kit: each drum is a few layered ZzFX calls ---------- */
 // param order: vol, rand, freq, attack, sustain, release, shape, curve, slide, dSlide, pJump, pJumpT, repeat, noise, mod, crush, delay, susVol, decay, tremolo, filter
 const DRUMS = [
-  { id: 'kick',   name: 'Kick',     key: '1', p: { tune: 1, decay: 1, tone: .5, level: 1 },
+  { id: 'kick',   name: 'Kick',     p: { tune: 1, decay: 1, tone: .5, level: 1 },
     layers: (p, v, r) => [
       [ .95*v, r*.3, 50*p.tune, 0, .05, .22*p.decay, 0, 1, -.08 ],
       [ .8*v, r*.3, 165*p.tune, 0, 0, .05, 0, 1, -4.5 ],
       [ .35*v*p.tone, r, 2400, 0, 0, .005, 4, 1, 0,0,0,0,0,0,0,0,0,1,0,0, 600 ],
     ] },
-  { id: 'snare',  name: 'Snare',    key: '2', p: { tune: 1, decay: 1, tone: .55, level: 1 },
+  { id: 'snare',  name: 'Snare',    p: { tune: 1, decay: 1, tone: .55, level: 1 },
     layers: (p, v, r) => [
       [ .55*v, r, 190*p.tune, 0, .012, .07*p.decay, 1, 1, -1.5 ],
       [ .75*v, r, 2200, 0, 0, .13*p.decay, 4, 1, 0,0,0,0,0, 1.5,0,0,0, .45, .015, 0, 350 + 900*p.tone ],
     ] },
-  { id: 'hat',    name: 'Hat',      key: '3', p: { tune: 1, decay: 1, tone: .5, level: .85 },
+  { id: 'hat',    name: 'Hat',      p: { tune: 1, decay: 1, tone: .5, level: .85 },
     layers: (p, v, r) => [
       [ .3*v, r, 5000*p.tune, 0, 0, .035*p.decay, 4, 1, 0,0,0,0,0, 1,0,0,0, 1,0,0, 2800 + 1600*p.tone ],
     ] },
-  { id: 'open',   name: 'Open hat', key: '4', p: { tune: 1, decay: 1, tone: .45, level: .7 },
+  { id: 'open',   name: 'Open hat', p: { tune: 1, decay: 1, tone: .45, level: .7 },
     layers: (p, v, r) => [
       [ .28*v, r, 5000*p.tune, 0, .015, .2*p.decay, 4, 1, 0,0,0,0,0, 1,0,0,0, .6, .02, 0, 2500 + 1600*p.tone ],
     ] },
-  { id: 'shaker', name: 'Shaker',   key: '5', p: { tune: 1, decay: 1, tone: .5, level: .6 },
+  { id: 'shaker', name: 'Shaker',   p: { tune: 1, decay: 1, tone: .5, level: .6 },
     layers: (p, v, r) => [
       [ .22*v, r, 3500*p.tune, .015, 0, .05*p.decay, 4, 1, 0,0,0,0,0, 1,0,0,0, 1,0,0, 2000 + 1500*p.tone ],
     ] },
@@ -713,9 +717,9 @@ function synthBreak(out, len, stepDur) {
 // a recorded break: take two bars and lay them onto the grid, played faster like a sped-up record.
 // Live hits land a little late and wander, so the strong hits are pinned to their 16ths and the
 // audio between them is stretched smoothly to fit: no gaps, no jumps, and every chop stays tight.
-function fitSample(smp, out) {
+function fitSample(smp, out, pair = src.pair) {
   const { data, barLen, bars } = smp, len = out.length, L = data.length;
-  const start = Math.min(src.pair, Math.max(0, Math.floor(bars/2) - 1))*2*barLen;
+  const start = Math.min(pair, Math.max(0, Math.floor(bars/2) - 1))*2*barLen;
   const ss = 2*barLen/N, Lo = len/N, pins = samplePins(smp, start, ss);
   let k = 0;
   for (let i = 0; i < len; i++) {
@@ -825,11 +829,11 @@ function applyMix() {
   shaper.curve = curve;
 }
 
-function playSlice(cell, t, dur) {
-  if (!fwdBuf || cell.mute) return;
+function playSlice(cell, t, dur, fwd = fwdBuf) {
+  if (!fwd || cell.mute) return;
   const n = cell.stut || 1, sub = dur/n, rate = Math.pow(2, cell.pitch/12);
-  const B = fwdBuf.duration, rs = renderStep;
-  const buf = cell.rev ? revBuf : fwdBuf;
+  const B = fwd.duration, rs = renderStep;
+  const buf = cell.rev ? revBuf : fwd;
   const off = cell.rev ? Math.max(0, B - (cell.src + 1)*rs) : cell.src*rs;
   for (let k = 0; k < n; k++) {
     const st = t + k*sub;
@@ -844,6 +848,31 @@ function playSlice(cell, t, dur) {
     src.start(st, off, Math.min(sub*rate + .01, B - off));
     src.stop(st + sub + .02);
   }
+}
+// one beat of the untouched break, at the current tempo: 1–8 are bars 1–2, Q–I are bars 3–4
+const BEAT_KEYS = '12345678qwertyui';
+let beatCache = null;
+function beatBuffer(pair) {
+  const smp = sampleSource(), pairs = smp ? Math.floor(smp.bars/2) : 1;
+  if (pair >= pairs) return null;
+  if (pair === (smp ? Math.min(src.pair, pairs - 1) : 0)) return fwdBuf;
+  // bars that aren't in the loop right now get rendered on the side
+  if (beatCache?.smp !== smp || beatCache.pair !== pair || beatCache.bpm !== renderBpm) {
+    const out = new Float32Array(breakData.length);
+    fitSample(smp, out, pair);
+    const g = smp.peak > 0 ? .95/smp.peak : 1;
+    const buf = ctx.createBuffer(1, out.length, SR), ch = buf.getChannelData(0);
+    for (let i = 0; i < out.length; i++) ch[i] = out[i]*g;
+    beatCache = { smp, pair, bpm: renderBpm, buf };
+  }
+  return beatCache.buf;
+}
+function playBeat(b) {
+  ensureAudio();
+  if (!fwdBuf) makeBuffers();
+  const buf = beatBuffer(b >> 3); if (!buf) return;
+  const sd = stepDur(), t = ctx.currentTime + .01;
+  for (let i = 0; i < 4; i++) playSlice({ src: (b % 8)*4 + i, pitch: 0 }, t + i*sd, sd, buf);
 }
 function audition(drum) {
   ensureAudio();
@@ -1061,7 +1090,44 @@ function drawSeq() {
     b.className = 'cell' + ((s >> 2) % 2 ? ' alt' : '') + (c.src !== s ? ' moved' : '') + (c.mute ? ' muted' : '') + (s === sel ? ' sel' : '') + (s === nowStep ? ' now' : '');
     b.setAttribute('aria-label', `Step ${s + 1} plays slice ${c.src + 1}${c.rev ? ', reversed' : ''}${c.stut > 1 ? ', stutter ' + c.stut : ''}${c.pitch ? ', pitch ' + c.pitch : ''}${c.mute ? ', muted' : ''}`);
   });
+  if (document.activeElement !== codeEl) { codeEl.value = seqCode(); codeEl.classList.remove('bad'); }
 }
+// typed slices: "1 1 2 8 14 15", 1-based, "." for a rest; a short list repeats to fill all N steps
+const codeEl = $('sliceCode');
+const seqCode = () => seq.map(c => c.mute ? '.' : c.src + 1).join(' ');
+function parseCode(text) {
+  const toks = text.trim().split(/[\s,]+/).filter(Boolean);
+  if (!toks.length) return null;
+  const out = [];
+  for (const t of toks) {
+    if (t === '.' || t === '-') { out.push(-1); continue; }
+    const n = +t;
+    if (!Number.isInteger(n) || n < 1 || n > N) return null;
+    out.push(n - 1);
+  }
+  return out;
+}
+function applyCode() {
+  if (codeEl.value === seqCode()) return;
+  const list = parseCode(codeEl.value);
+  if (!list) { codeEl.classList.add('bad'); return; }
+  codeEl.classList.remove('bad');
+  commit(() => {
+    seq = Array.from({ length: N }, (_, i) => {
+      const v = list[i % list.length];
+      return v < 0 ? { ...cleanCell(i), mute: true } : { ...cleanCell(i), src: v };
+    });
+  });
+  codeEl.value = seqCode();
+}
+codeEl.addEventListener('keydown', e => {
+  e.stopPropagation();
+  if (e.key === 'Enter') { e.preventDefault(); applyCode(); }
+  else if (e.key === 'Escape') { codeEl.value = seqCode(); codeEl.classList.remove('bad'); codeEl.blur(); }
+});
+codeEl.addEventListener('keyup', e => e.stopPropagation());
+codeEl.addEventListener('input', () => codeEl.classList.toggle('bad', !!codeEl.value.trim() && !parseCode(codeEl.value)));
+codeEl.addEventListener('change', applyCode);
 seqEl.addEventListener('click', e => {
   const b = e.target.closest('.cell'); if (!b) return;
   select(+b.dataset.step);
@@ -1480,7 +1546,7 @@ const KNOBS = [
 function codeFor(d) { return d.layers(d.p, d.p.level, 0).map(zzCode).join('\n'); }
 DRUMS.forEach(d => {
   const card = document.createElement('div'); card.className = 'drum';
-  card.innerHTML = `<div class="drum-head"><h3>${d.name}<kbd>${d.key}</kbd></h3><button class="hitbtn" data-hit="${d.id}">Hit</button></div><div class="sliders"></div><div class="code"><pre id="code-${d.id}"></pre><button>Copy</button></div>`;
+  card.innerHTML = `<div class="drum-head"><h3>${d.name}</h3><button class="hitbtn" data-hit="${d.id}">Hit</button></div><div class="sliders"></div><div class="code"><pre id="code-${d.id}"></pre><button>Copy</button></div>`;
   const sl = card.querySelector('.sliders'), pre = card.querySelector('pre');
   KNOBS.forEach(m => sl.appendChild(slider(`k-${d.id}-${m.k}`, m.label, m, d.p[m.k], m.fmt,
     v => { d.p[m.k] = v; pre.textContent = codeFor(d); queueRender(); },
@@ -2154,11 +2220,11 @@ document.addEventListener('keydown', e => {
   if (e.metaKey || e.ctrlKey || e.altKey) { if ((e.metaKey || e.ctrlKey) && e.key === 'z') { e.preventDefault(); undo(); } return; }
   const inRange = e.target.matches && e.target.matches('input[type=range]');
   if (inRange) return;
-  const drum = DRUMS.find(d => d.key === e.key); if (drum) { audition(drum); return; }
   const k = e.key.toLowerCase();
+  const beat = BEAT_KEYS.indexOf(k); if (beat >= 0 && k.length === 1) { if (!e.repeat) playBeat(beat); return; }
   if (e.key === 'ArrowRight') { e.preventDefault(); select(sel + 1); }
   else if (e.key === 'ArrowLeft') { e.preventDefault(); select(sel - 1); }
-  else if (k === 'r') editSel(c => c.rev = !c.rev);
+  else if (k === 'v') editSel(c => c.rev = !c.rev);
   else if (k === 's') editSel(c => c.stut = c.stut >= 4 ? 1 : c.stut + 1);
   else if (k === 'm') editSel(c => c.mute = !c.mute);
   else if (k === 'z') undo();
