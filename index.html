@@ -581,26 +581,26 @@ function zzCode(arr) {
 /* ---------- Kit: each drum is a few layered ZzFX calls ---------- */
 // param order: vol, rand, freq, attack, sustain, release, shape, curve, slide, dSlide, pJump, pJumpT, repeat, noise, mod, crush, delay, susVol, decay, tremolo, filter
 const DRUMS = [
-  { id: 'kick',   name: 'Kick',     p: { tune: 1, decay: 1, tone: .5, level: 1 },
+  { id: 'kick',   name: 'Kick',     key: '1', p: { tune: 1, decay: 1, tone: .5, level: 1 },
     layers: (p, v, r) => [
       [ .95*v, r*.3, 50*p.tune, 0, .05, .22*p.decay, 0, 1, -.08 ],
       [ .8*v, r*.3, 165*p.tune, 0, 0, .05, 0, 1, -4.5 ],
       [ .35*v*p.tone, r, 2400, 0, 0, .005, 4, 1, 0,0,0,0,0,0,0,0,0,1,0,0, 600 ],
     ] },
-  { id: 'snare',  name: 'Snare',    p: { tune: 1, decay: 1, tone: .55, level: 1 },
+  { id: 'snare',  name: 'Snare',    key: '2', p: { tune: 1, decay: 1, tone: .55, level: 1 },
     layers: (p, v, r) => [
       [ .55*v, r, 190*p.tune, 0, .012, .07*p.decay, 1, 1, -1.5 ],
       [ .75*v, r, 2200, 0, 0, .13*p.decay, 4, 1, 0,0,0,0,0, 1.5,0,0,0, .45, .015, 0, 350 + 900*p.tone ],
     ] },
-  { id: 'hat',    name: 'Hat',      p: { tune: 1, decay: 1, tone: .5, level: .85 },
+  { id: 'hat',    name: 'Hat',      key: '3', p: { tune: 1, decay: 1, tone: .5, level: .85 },
     layers: (p, v, r) => [
       [ .3*v, r, 5000*p.tune, 0, 0, .035*p.decay, 4, 1, 0,0,0,0,0, 1,0,0,0, 1,0,0, 2800 + 1600*p.tone ],
     ] },
-  { id: 'open',   name: 'Open hat', p: { tune: 1, decay: 1, tone: .45, level: .7 },
+  { id: 'open',   name: 'Open hat', key: '4', p: { tune: 1, decay: 1, tone: .45, level: .7 },
     layers: (p, v, r) => [
       [ .28*v, r, 5000*p.tune, 0, .015, .2*p.decay, 4, 1, 0,0,0,0,0, 1,0,0,0, .6, .02, 0, 2500 + 1600*p.tone ],
     ] },
-  { id: 'shaker', name: 'Shaker',   p: { tune: 1, decay: 1, tone: .5, level: .6 },
+  { id: 'shaker', name: 'Shaker',   key: '5', p: { tune: 1, decay: 1, tone: .5, level: .6 },
     layers: (p, v, r) => [
       [ .22*v, r, 3500*p.tune, .015, 0, .05*p.decay, 4, 1, 0,0,0,0,0, 1,0,0,0, 1,0,0, 2000 + 1500*p.tone ],
     ] },
@@ -1535,7 +1535,7 @@ const KNOBS = [
 function codeFor(d) { return d.layers(d.p, d.p.level, 0).map(zzCode).join('\n'); }
 DRUMS.forEach(d => {
   const card = document.createElement('div'); card.className = 'drum';
-  card.innerHTML = `<div class="drum-head"><h3>${d.name}</h3><button class="hitbtn" data-hit="${d.id}">Hit</button></div><div class="sliders"></div><div class="code"><pre id="code-${d.id}"></pre><button>Copy</button></div>`;
+  card.innerHTML = `<div class="drum-head"><h3>${d.name}<kbd>${d.key}</kbd></h3><button class="hitbtn" data-hit="${d.id}">Hit</button></div><div class="sliders"></div><div class="code"><pre id="code-${d.id}"></pre><button>Copy</button></div>`;
   const sl = card.querySelector('.sliders'), pre = card.querySelector('pre');
   KNOBS.forEach(m => sl.appendChild(slider(`k-${d.id}-${m.k}`, m.label, m, d.p[m.k], m.fmt,
     v => { d.p[m.k] = v; pre.textContent = codeFor(d); queueRender(); },
@@ -2210,7 +2210,9 @@ document.addEventListener('keydown', e => {
   const inRange = e.target.matches && e.target.matches('input[type=range]');
   if (inRange) return;
   const k = e.key.toLowerCase();
-  const beat = BEAT_KEYS.indexOf(k); if (beat >= 0 && k.length === 1) { if (!e.repeat) playBeat(beat); return; }
+  // the synth kit has no recorded beats to play, so its number keys hit the drums instead
+  if (src.kind === 'synth') { const drum = DRUMS.find(d => d.key === e.key); if (drum) { audition(drum); return; } }
+  else { const beat = BEAT_KEYS.indexOf(k); if (beat >= 0 && k.length === 1) { if (!e.repeat) playBeat(beat); return; } }
   if (e.key === 'ArrowRight') { e.preventDefault(); select(sel + 1); }
   else if (e.key === 'ArrowLeft') { e.preventDefault(); select(sel - 1); }
   else if (k === 'v') editSel(c => c.rev = !c.rev);
