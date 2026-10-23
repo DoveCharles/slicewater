@@ -1406,7 +1406,7 @@ $('clearPat').onclick = () => { for (const d of DRUMS) pattern[d.id] = '.'.repea
 
 /* ---------- Mix sliders ---------- */
 const MIX = [
-  { k: 'bpm', label: 'Tempo', min: 160, max: 180, step: 1, fmt: v => v + ' bpm', render: true },
+  { k: 'bpm', label: 'Tempo', min: 20, max: 200, step: 1, fmt: v => v + ' bpm', render: true },
   { k: 'swing', label: 'Swing', min: 0, max: .6, step: .01, fmt: v => Math.round(v*100) + '%' },
   { k: 'hipass', label: 'High-pass', min: 0, max: 1, step: .005, fmt: () => mix.hipass ? fmtHz(hipassHz()) : 'off' },
   { k: 'filter', label: 'Low-pass', min: 0, max: 1, step: .005, fmt: () => fmtHz(filterHz()) },
@@ -2120,10 +2120,39 @@ paintLead();
 
 /* ---------- Transport + keys + draw loop ---------- */
 playBtn.onclick = () => playing ? stop() : start();
+// Space is a master switch: it silences the beat, pad, sub and lead together, and brings back whatever was on
+let paused = null;
+function anySounding() { return playing || padVoices.length || subVoice || leadTimer || mel.sounding; }
+function stopAll() {
+  paused = { pad: pad.on || (pad.latch && sounding.length > 0), lead: lead.latch };
+  pad.on = false; lead.latch = false;
+  if (playing) stop();
+  padStop();
+  if (leadTimer) { clearInterval(leadTimer); leadTimer = 0; }
+  if (mel.sounding) { leadNoteOff(ctx.currentTime); mel.sounding = false; }
+  paintPad(); paintLead();
+}
+function playAll() {
+  if (paused) {
+    if (paused.pad) { pad.on = true; padPlay(pad.root); }
+    lead.latch = paused.lead;
+    paused = null;
+    paintPad(); paintLead();
+  }
+  start();
+}
+window.addEventListener('keydown', e => {
+  if (e.key !== ' ' || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.target.matches && e.target.matches('input[type=text], textarea, select')) return;
+  e.preventDefault(); e.stopPropagation();
+  if (!e.repeat) anySounding() ? stopAll() : playAll();
+}, true);
+window.addEventListener('keyup', e => {
+  if (e.key === ' ' && !(e.target.matches && e.target.matches('input[type=text], textarea, select'))) { e.preventDefault(); e.stopPropagation(); }
+}, true);
 document.addEventListener('keydown', e => {
   if (e.metaKey || e.ctrlKey || e.altKey) { if ((e.metaKey || e.ctrlKey) && e.key === 'z') { e.preventDefault(); undo(); } return; }
   const inRange = e.target.matches && e.target.matches('input[type=range]');
-  if (e.key === ' ' && !(e.target.tagName === 'BUTTON')) { e.preventDefault(); playing ? stop() : start(); return; }
   if (inRange) return;
   const drum = DRUMS.find(d => d.key === e.key); if (drum) { audition(drum); return; }
   const k = e.key.toLowerCase();
